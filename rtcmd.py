@@ -57,6 +57,24 @@ def check_process(name):
     return False
 #
 #
+def convertDataType(dtype, data, code='utf-8'):
+  if dtype == str:
+    if sys.version_info.major == 2:
+        return data.encode(code)
+    else:
+        return data
+
+  elif sys.version_info.major == 2 and dtype == unicode:
+    return unicode(data)
+
+  elif dtype == int or dtype == float :
+    return dtype(data)
+  else:
+    if type(data) == str :
+        return eval(data)
+    return data
+#
+#
 def instantiateDataType(dtype):
   if isinstance(dtype, int) : desc = [dtype]
   elif isinstance(dtype, tuple) : desc = dtype
@@ -88,9 +106,27 @@ def instantiateDataType(dtype):
     return desc[1](*arg)
 
   return None
+
+
+#########################################################################
+# DataListener:  This class connected with DataInPort
+#
+class RtcDataListener(OpenRTM_aist.ConnectorDataListenerT):
+    def __init__(self, name, type, obj):
+        self._name = name
+        self._type = type
+        self._obj = obj
+        self._ondata_thread=None
+    
+    def __call__(self, info, cdrdata):
+        data = OpenRTM_aist.ConnectorDataListenerT.__call__(self,
+                        info, cdrdata, instantiateDataType(self._type))
+        self._obj.onData(self._name, data)
+
+###########################################################################
 #
 #
-class Rtc_Sh():
+class Rtc_Sh:
   #
   #
   def __init__(self, orb=None, server_name='localhost'):
@@ -118,11 +154,17 @@ class Rtc_Sh():
     self._send_thread = None
     ########################################
 
+  #
+  #
   def __del__(self):
-    self.orb.shutdown(wait_for_completion=CORBA.FALSE)
-    self.orb.destroy()
+    if self.master:
+      self.manager.shutdown()
+    else:
+      self.orb.shutdown(wait_for_completion=CORBA.FALSE)
+      self.orb.destroy()
 
-
+  #
+  #
   def initRtmManager(self):
     if self.orb :
       self.orb.shutdown(wait_for_completion=CORBA.FALSE)
@@ -142,6 +184,7 @@ class Rtc_Sh():
 
     self.manager.activateManager()
     self.manager.runManager(True)
+
   #
   #
   def resolveRTObject(self, name):
@@ -335,6 +378,7 @@ class Rtc_Sh():
     else:
       print("No such RTC:", name)
     return None
+
   #
   #
   def getConnectors(self, name, port):
@@ -368,8 +412,8 @@ class Rtc_Sh():
       name1, port1 = portname1.split(":")
       name2, port2 = portname2.split(":")
 
-      p1=self.getPortRef(name1, port1)
-      p2=self.getPortRef(name2, port2)
+      #p1=self.getPortRef(name1, port1)
+      #p2=self.getPortRef(name2, port2)
 
       cons  = self.getConnectors(name1, port1)
       cons2 = self.getConnectors(name2, port2)
@@ -414,6 +458,7 @@ class Rtc_Sh():
       res="Error"
     print(res)
     return
+  
   #
   #
   def connect2(self, name, p1, p2, service=False):
@@ -432,6 +477,7 @@ class Rtc_Sh():
       return None
     print("connect2", res)
     return prof
+
   #
   #
   def disconnect(self, portname1, portname2):
@@ -505,7 +551,12 @@ class Rtc_Sh():
         self._port[name] = OpenRTM_aist.InPort(name, self._data[name])
         self._port[name].addConnectorDataListener(
                             OpenRTM_aist.ConnectorDataListenerType.ON_BUFFER_WRITE,
-                            eSEATDataListener(name, type, self))
+                            RtcDataListener(name, type, self))
+
+        self._port[name].configure()
+        self._port[name].initConsumers()
+        self._port[name].initProviders()
+        self._port[name].setConnectionLimit(10)
         #self.registerInPort(name, self._port[name])
 
   #
@@ -543,7 +594,7 @@ class Rtc_Sh():
   #
   #
   def onData(self, name, data):
-    print("===", name, data)
+    print("===>", name, data)
     return
 
   #
@@ -649,6 +700,8 @@ class Rtc_Sh():
     except:
       return None
 
+  #
+  #
   def readAllData(self,name):
     try:
       res=[]
@@ -659,7 +712,7 @@ class Rtc_Sh():
       return []
 
 ###############################################
-#
+#   cass RtCmd
 #
 class RtCmd(cmd.Cmd):
   #intro="Welcome to RtCmd"
@@ -686,29 +739,22 @@ class RtCmd(cmd.Cmd):
     self._info=""
     self.processes = []
 
-  #
-  #
+  def no_rtsh(self):
+    if self.rtsh is None:
+      print("No NameService")
+      return True
+    return False
+
+  ###
+  #  COMMAND: echo
   def do_echo(self, arg):
     print("Echo:", arg)
     return self.onecycle
 
-  #
-  #
-  def do_connectNS(self, arg):
-    if self.rtsh is None:
-      try:
-        self.rtsh=Rtc_Sh()
-        self.rtsh.getRTObjectList()
-      except:
-        print("Error: NameService not found.")
-    else:
-      print("Already connected NameService.")
-  #
-  #
+  ###
+  #  CPMMAND: list
   def do_list(self, arg):
-    if self.rtsh is None:
-      print("No NameService")
-      return self.onecycle
+    if self.no_rtsh() : return self.onecycle
     num=0
     argv=arg.split()
     l_flag=False
@@ -773,7 +819,6 @@ class RtCmd(cmd.Cmd):
     print("")
     return self.onecycle
 
-
   #
   #
   def get_object_names(self, text):
@@ -789,12 +834,12 @@ class RtCmd(cmd.Cmd):
 
   #
   #
-  def compl_object_name(self, text, line, begind, endidx):
+  def compl_object_name(self, text, line, begind, endidx, sp=""):
     names=list(self.rtsh.object_list.keys())
     if not text:
       completions=names[:]
     else:
-      completions= [ n for n in names if n.startswith(text) ]
+      completions= [ n+sp for n in names if n.startswith(text) ]
     return completions 
 
   #
@@ -816,15 +861,13 @@ class RtCmd(cmd.Cmd):
     except:
       traceback.print_exc()
       completions=[]
-    return [ objname+":"+p for p in completions]
+    return [ objname+":"+p+" " for p in completions]
     #return completions
 
-  #
-  #
+  ###
+  #  COMMAND: get_ports
   def do_get_ports(self, arg):
-    if self.rtsh is None:
-      print("No NameService")
-      return self.onecycle
+    if self.no_rtsh() : return self.onecycle
   
     num=0
     ports = self.rtsh.getPorts(arg)
@@ -843,12 +886,11 @@ class RtCmd(cmd.Cmd):
   def complete_get_ports(self, text, line, begind, endidx):
     return self.compl_object_name(text, line, begind, endidx)
 
-  #
-  #
+  ###
+  #  COMMAND: get_connectors
   def do_get_connectors(self, arg):
-    if self.rtsh is None:
-      print("No NameService")
-      return self.onecycle
+    if self.no_rtsh() : return self.onecycle
+
     try:
       name, port = arg.split(":")
       cons=self.rtsh.getConnectors(name, port)
@@ -871,12 +913,11 @@ class RtCmd(cmd.Cmd):
     else:
       return self.compl_object_name(text, line, begind, endidx)
 
-  #
-  #
+  ###
+  #  COMMAND: get_connection
   def do_get_connection(self, arg):
-    if self.rtsh is None:
-      print("No NameService")
-      return self.onecycle
+    if self.no_rtsh() : return self.onecycle
+
     argv=arg.split()
     if len(argv) > 1:
       cons = self.rtsh.getConnections(argv[0], argv[1])
@@ -901,12 +942,11 @@ class RtCmd(cmd.Cmd):
     else:
       return self.compl_object_name(text, line, begind, endidx)
 
-  #
-  #
+  ###
+  #  COMMAND: disconnect
   def do_disconnect(self, arg):
-    if self.rtsh is None:
-      print("No NameService")
-      return self.onecycle
+    if self.no_rtsh() : return self.onecycle
+
     argv=arg.split()
     if len(argv) > 1:
       self.rtsh.disconnect(argv[0], argv[1])
@@ -924,12 +964,11 @@ class RtCmd(cmd.Cmd):
     else:
       return self.compl_object_name(text, line, begind, endidx)
 
-  #
-  #
+  ###
+  #  COMMAND: connect
   def do_connect(self, arg):
-    if self.rtsh is None:
-      print("No NameService")
-      return self.onecycle
+    if self.no_rtsh() : return self.onecycle
+
     argv=arg.split()
     if len(argv) > 1:
       self.rtsh.connect(argv[0], argv[1])
@@ -954,7 +993,6 @@ class RtCmd(cmd.Cmd):
         return self.compl_outport_name(text, line, begind, endidx)
     else:
       return self.compl_object_name(text, line, begind, endidx)
-
 
   #
   #
@@ -1001,14 +1039,12 @@ class RtCmd(cmd.Cmd):
     else:
       return [ objname+":"+p for p in completions]
 
-  #
-  #
+  ###
+  #  COMMAND: activate
   def do_activate(self, arg):
-    if self.rtsh is None:
-      print("No NameService")
-      return self.onecycle
-    argv=arg.split()
+    if self.no_rtsh() : return self.onecycle
 
+    argv=arg.split()
     self.rtsh.getRTObjectList()
     for v in argv:
       objs = self.get_object_names(v)
@@ -1021,12 +1057,10 @@ class RtCmd(cmd.Cmd):
   def complete_activate(self, text, line, begind, endidx):
     return self.compl_object_name(text, line, begind, endidx)
 
-  #
-  #
+  ###
+  #  COMMAND: deactivate
   def do_deactivate(self, arg):
-    if self.rtsh is None:
-      print("No NameService")
-      return self.onecycle
+    if self.no_rtsh() : return self.onecycle
 
     self.rtsh.getRTObjectList()
     argv=arg.split()
@@ -1041,12 +1075,11 @@ class RtCmd(cmd.Cmd):
   def complete_deactivate(self, text, line, begind, endidx):
     return self.compl_object_name(text, line, begind, endidx)
 
-  #
-  #
+  ###
+  #  COMMAND: get_state
   def do_get_state(self, arg):
-    if self.rtsh is None:
-      print("No NameService")
-      return self.onecycle
+    if self.no_rtsh() : return self.onecycle
+
     stat=self.rtsh.get_component_state(arg)
     print("State:", arg,":", stat)
     return self.onecycle
@@ -1056,12 +1089,10 @@ class RtCmd(cmd.Cmd):
   def complete_get_state(self, text, line, begind, endidx):
     return self.compl_object_name(text, line, begind, endidx)
 
-  #
-  #
+  ###
+  #  COMMAND: terminate
   def do_terminate(self, arg):
-    if self.rtsh is None:
-      print("No NameService")
-      return self.onecycle
+    if self.no_rtsh() : return self.onecycle
 
     self.rtsh.getRTObjectList()
     argv=arg.split()
@@ -1077,10 +1108,11 @@ class RtCmd(cmd.Cmd):
   def complete_terminate(self, text, line, begind, endidx):
     return self.compl_object_name(text, line, begind, endidx)
 
+  ###
+  #  COMMAND: unbind
   def do_unbind(self, arg):
-    if self.rtsh is None:
-      print("No NameService")
-      return self.onecycle
+    if self.no_rtsh() : return self.onecycle
+
     argv=arg.split()
     for v in argv:
       self.rtsh.unbind(v)
@@ -1089,6 +1121,8 @@ class RtCmd(cmd.Cmd):
   def complete_unbind(self, text, line, begind, endidx):
     return self.compl_object_name(text, line, begind, endidx)
 
+  ###
+  #  COMMAND: system
   def do_system(self, arg):
     cmdline = arg.split()
     try:
@@ -1097,6 +1131,19 @@ class RtCmd(cmd.Cmd):
     except:
       traceback.print_exc()
 
+  ###
+  #  COMMAND: start
+  def do_start(self, arg):
+    arg = "cmd /c start "+arg
+    cmdline = arg.split()
+    try:
+      proc = subprocess.Popen(cmdline, shell=True)
+      self.processes.append(proc)
+    except:
+      traceback.print_exc()
+
+  ###
+  #  COMMAND: killall
   def do_killall(self, arg):
     print(self.processes)
     for p in self.processes:
@@ -1105,13 +1152,17 @@ class RtCmd(cmd.Cmd):
         p.terminate()
         p.wait(5)
 
+  ###
+  #  COMMAND: refresh
   def do_refresh(self,arg):
     if self.rtsh is None:
       print("No NameService")
       return self.onecycle
     self.rtsh.getRTObjectList()
 
-  def do_cmds(self, arg):
+  ###
+  #  COMMAND: launch
+  def do_launch(self, arg):
     with open(arg, "r") as f:
       cmds = f.read()
       for cmd in cmds.split("\n"):
@@ -1119,9 +1170,13 @@ class RtCmd(cmd.Cmd):
         if cmd :
           self.onecmd(cmd)
 
+  ###
+  #  COMMAND: sleep
   def do_sleep(self, arg):
     time.sleep(int(arg))
 
+  ###
+  #  COMMAND: bye
   def do_bye(self, arg):
     print('...BYE')
     for p in self.processes:
@@ -1133,20 +1188,27 @@ class RtCmd(cmd.Cmd):
     return True
 
   # ----- record and playback -----
+  #
+  #  COMMAND: record
   def do_record(self, arg):
     self.file = open(arg, 'w')
 
+  ###
+  #  COMMAND: playback
   def do_playback(self, arg):
     self.close()
     with open(arg) as f:
       self.cmdqueue.extend(f.read().splitlines())
-
+  #
+  #
   def precmd(self, line):
     #line = line.lower()
     if self.file and 'playback' not in line:
       print(line, file=self.file)
     return line
 
+  #
+  #
   def close(self):
     if self.file:
       self.file.close()
@@ -1154,19 +1216,23 @@ class RtCmd(cmd.Cmd):
     if self.rtsh.manager:
       self.rtsh.manager.shutdown()
 
+  #
+  #
   def emptyline(self):
     return
 
+  #
+  #
   def completenames(self, text, *ignored):
     dotext = 'do_'+text
     retval = [a[3:]+" " for a in self.get_names() if a.startswith(dotext)]
     return retval
 
   # ---------- injection -------
+  #
+  #  COMMAND: injection
   def do_injection(self, arg):
-    if self.rtsh is None:
-      print("No NameService")
-      return self.onecycle
+    if self.no_rtsh() : return self.onecycle
   
     argv=arg.split(" ", 1)
 
@@ -1198,7 +1264,7 @@ class RtCmd(cmd.Cmd):
       return self.compl_object_name(text, line, begind, endidx)
 
 #########################################
-#
+#   Functions
 #
 def nvlist2dict(nvlist):
   res={}
@@ -1220,6 +1286,8 @@ def execute_from_file(fname):
     for cmd in cmds.split("\n"):
       rtcmd.onecmd(cmd)
 
+####
+#   M A I N
 def main():
   if not check_process("omniNames") :
     subprocess.Popen(["cmd", "/c", "start", "rtm-naming.bat"])
