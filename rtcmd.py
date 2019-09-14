@@ -157,7 +157,7 @@ class Rtc_Sh:
   #
   #
   def __del__(self):
-    if self.master:
+    if self.manager:
       self.manager.shutdown()
     else:
       self.orb.shutdown(wait_for_completion=CORBA.FALSE)
@@ -739,6 +739,10 @@ class RtCmd(cmd.Cmd):
     self._info=""
     self.processes = []
 
+  def __del__(self):
+    if self.rtsh :
+      del self.rtsh
+
   def no_rtsh(self):
     if self.rtsh is None:
       print("No NameService")
@@ -1237,19 +1241,24 @@ class RtCmd(cmd.Cmd):
     argv=arg.split(" ", 1)
 
     cname, pname =argv[0].split(":")
-    pref = self.rtsh.getPortRef(cname, pname)
+
     dtype = self.rtsh.getPortDataType(cname, pname)
-    dtype2 = dtype.split(":")[1].replace("RTC/", "")
-    dtype2 = dtype2.replace("/", ".")
+    if dtype :
+      dtype2 = dtype.split(":")[1].replace("RTC/", "")
+      dtype2 = dtype2.replace("/", ".")
 
-    if self.rtsh.manager is None: self.rtsh.initRtmManager()
+      if self.rtsh.manager is None: self.rtsh.initRtmManager()
 
-    self.rtsh.createDataPort("injection", dtype2, "rtcout")
-    cprof=self.rtsh.connect2("injection_"+cname+"_"+pname, self.rtsh._port["injection"]._objref, pref )
-    if len(argv) > 1:
-      self.rtsh.send("injection", argv[1])
-    self.rtsh._port["injection"].disconnect(cprof.connector_id)
-    print("-- disconnect injection")
+      pref = self.rtsh.getPortRef(cname, pname)
+      self.rtsh.createDataPort("injection", dtype2, "rtcout")
+      cprof=self.rtsh.connect2("injection_"+cname+"_"+pname, self.rtsh._port["injection"]._objref, pref )
+      if len(argv) > 1:
+        print("Send", argv[1])
+        self.rtsh.send("injection", argv[1])
+      self.rtsh._port["injection"].disconnect(cprof.connector_id)
+      print("-- disconnect injection",self.onecycle)
+      
+    if self.onecycle: self.close()
 
     return self.onecycle
 
@@ -1293,7 +1302,7 @@ def main():
     subprocess.Popen(["cmd", "/c", "start", "rtm-naming.bat"])
 
   if len(sys.argv) > 1:
-    return RtCmd().onecmd(" ".join(sys.argv[1:]))
+    return  RtCmd(once=True).onecmd(" ".join(sys.argv[1:]))
   else:
     RtCmd().cmdloop(intro="Welcome to RtCmd")
 
