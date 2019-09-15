@@ -1258,7 +1258,7 @@ class RtCmd(cmd.Cmd):
 
       #
       # send data 
-      if len(argv == 1):
+      if len(argv) == 1:
         loop = True
         while loop:
           print("==> ", end="")
