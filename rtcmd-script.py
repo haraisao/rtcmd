@@ -1248,11 +1248,11 @@ class RtCmd(cmd.Cmd):
     if dtype :
       dtype2 = dtype.split(":")[1].replace("RTC/", "")
       dtype2 = dtype2.replace("/", ".")
-
+      pref = self.rtsh.getPortRef(cname, pname)
       #
       # Create inport and connect
       if self.rtsh.manager is None: self.rtsh.initRtmManager()
-      pref = self.rtsh.getPortRef(cname, pname)
+
       self.rtsh.createDataPort("injection", dtype2, "rtcout")
       cprof=self.rtsh.connect2("injection_"+cname+"_"+pname, self.rtsh._port["injection"]._objref, pref)
 
@@ -1308,11 +1308,11 @@ class RtCmd(cmd.Cmd):
     if dtype :
       dtype2 = dtype.split(":")[1].replace("RTC/", "")
       dtype2 = dtype2.replace("/", ".")
-
+      pref = self.rtsh.getPortRef(cname, pname)
       #
       # Create inport and connect
       if self.rtsh.manager is None: self.rtsh.initRtmManager()
-      pref = self.rtsh.getPortRef(cname, pname)
+
       self.rtsh.createDataPort("print", dtype2, "rtcin")
       cprof=self.rtsh.connect2("print_"+cname+"_"+pname, self.rtsh._port["print"]._objref, pref)
 
