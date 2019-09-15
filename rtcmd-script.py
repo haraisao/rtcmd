@@ -601,7 +601,7 @@ class Rtc_Sh:
   #  Get DataType
   #
   def getDataType(self, s):
-    if len(s) == 0         : return (TimedString, 0)
+    if len(s) == 0         : return (TimedString, str, False)
     seq = False
 
     if s[-3:] == "Seq"     : seq = True
