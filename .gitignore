@@ -1,0 +1,8 @@
+*.pyc
+*.swp
+dist/
+build/
+contrib/
+test/
+*.log
+logback.xml

@@ -545,15 +545,17 @@ class Rtc_Sh:
 
   ##############################################
   #
-  def createInPort(self, name, type=TimedString):
+  def createInPort(self, name, type=TimedString, listener=True):
         self._datatype[name]=type
         self._data[name] = instantiateDataType(type)
         self._port[name] = OpenRTM_aist.InPort(name, self._data[name])
-        self._port[name].addConnectorDataListener(
+
+        if listener:
+          self._port[name].addConnectorDataListener(
                             OpenRTM_aist.ConnectorDataListenerType.ON_BUFFER_WRITE,
                             RtcDataListener(name, type, self))
 
-        self._port[name].configure()
+        #self._port[name].configure()
         self._port[name].initConsumers()
         self._port[name].initProviders()
         self._port[name].setConnectionLimit(10)
@@ -585,7 +587,7 @@ class Rtc_Sh:
 
         elif inout == 'rtcin':
             self.adaptortype[name] = self.getDataType(dtype)
-            self.createInPort(name, self.adaptortype[name][0])
+            self.createInPort(name, self.adaptortype[name][0], listener=False)
             self.adaptors[name] = self
         else:
             return False
@@ -1247,17 +1249,29 @@ class RtCmd(cmd.Cmd):
       dtype2 = dtype.split(":")[1].replace("RTC/", "")
       dtype2 = dtype2.replace("/", ".")
 
+      #
+      # Create inport and connect
       if self.rtsh.manager is None: self.rtsh.initRtmManager()
-
       pref = self.rtsh.getPortRef(cname, pname)
       self.rtsh.createDataPort("injection", dtype2, "rtcout")
-      cprof=self.rtsh.connect2("injection_"+cname+"_"+pname, self.rtsh._port["injection"]._objref, pref )
-      if len(argv) > 1:
-        try:
-          data=eval(argv[1])
-          self.rtsh.send("injection", data)
-        except:
-          self.rtsh.send("injection", argv[1])
+      cprof=self.rtsh.connect2("injection_"+cname+"_"+pname, self.rtsh._port["injection"]._objref, pref)
+
+      #
+      # send data 
+      if len(argv == 1):
+        loop = True
+        while loop:
+          print("==> ", end="")
+          try:
+            data=input()
+            self.sendData(data)
+          except EOFError:
+            loop = False
+      else:
+        self.sendData(argv[1])
+
+      #
+      # disconnect
       self.rtsh._port["injection"].disconnect(cprof.connector_id)
       print("-- disconnect injection",self.onecycle)
       
@@ -1274,6 +1288,63 @@ class RtCmd(cmd.Cmd):
       #return self.compl_outport_name(text, line, begind, endidx)
     else:
       return self.compl_object_name(text, line, begind, endidx)
+
+  def sendData(self, data):
+    try:
+      self.rtsh.send("injection", eval(data))
+    except:
+      self.rtsh.send("injection", data)
+    return 
+
+  #
+  #
+  def do_print(self, arg):
+    if self.no_rtsh() : return self.onecycle
+  
+    argv=arg.split(" ", 1)
+    cname, pname =argv[0].split(":")
+    dtype = self.rtsh.getPortDataType(cname, pname)
+
+    if dtype :
+      dtype2 = dtype.split(":")[1].replace("RTC/", "")
+      dtype2 = dtype2.replace("/", ".")
+
+      #
+      # Create inport and connect
+      if self.rtsh.manager is None: self.rtsh.initRtmManager()
+      pref = self.rtsh.getPortRef(cname, pname)
+      self.rtsh.createDataPort("print", dtype2, "rtcin")
+      cprof=self.rtsh.connect2("print_"+cname+"_"+pname, self.rtsh._port["print"]._objref, pref)
+
+      #
+      # recieve data
+      loop = True
+      while loop:
+        if self.rtsh.isNew("print"):
+          loop = False
+        time.sleep(0.3)
+      data = self.rtsh.readData("print")
+      print(data)
+      #
+      # disconnect
+      self.rtsh._port["print"].disconnect(cprof.connector_id)
+      print("-- disconnect print",self.onecycle)
+      
+    if self.onecycle: self.close()
+
+    return self.onecycle
+
+  #
+  #
+  def complete_print(self, text, line, begind, endidx):
+    args=line.split()
+
+    if line[endidx-1] != ' ' and args[-1].find(':') > 0 :
+      text=args[-1]
+      return self.compl_outport_name(text, line, begind, endidx)
+    else:
+      return self.compl_object_name(text, line, begind, endidx)
+
 
 #########################################
 #   Functions
