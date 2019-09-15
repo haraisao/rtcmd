@@ -1253,8 +1253,11 @@ class RtCmd(cmd.Cmd):
       self.rtsh.createDataPort("injection", dtype2, "rtcout")
       cprof=self.rtsh.connect2("injection_"+cname+"_"+pname, self.rtsh._port["injection"]._objref, pref )
       if len(argv) > 1:
-        print("Send", argv[1])
-        self.rtsh.send("injection", argv[1])
+        try:
+          data=eval(argv[1])
+          self.rtsh.send("injection", data)
+        except:
+          self.rtsh.send("injection", argv[1])
       self.rtsh._port["injection"].disconnect(cprof.connector_id)
       print("-- disconnect injection",self.onecycle)
       
