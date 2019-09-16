@@ -107,7 +107,17 @@ def instantiateDataType(dtype):
 
   return None
 
+def isDataInport(prof, dtype):
+  try:
+    return (prof['port.port_type'] == 'DataInPort' and (dtype == "" or prof['dataport.data_type'] == dtype))
+  except:
+    return True
 
+def isDataOutport(prof, info):
+  try:
+    return (prof['port.port_type'] == 'DataOutPort')
+  except:
+    return True
 #########################################################################
 # DataListener:  This class connected with DataInPort
 #
@@ -266,7 +276,7 @@ class Rtc_Sh:
 
   #
   #
-  def getPorts(self, name):
+  def getPorts(self, name, filter=None, f_arg=None):
     res=[]
     if name.count(".rtc") == 0 : name = name+".rtc"
     if not (name in self.object_list):
@@ -277,60 +287,8 @@ class Rtc_Sh:
       for p in port_ref:
         pp = p.get_port_profile()
         pprof =  nvlist2dict(pp.properties)
-        if pp.interfaces:
-          ifp=pp.interfaces[0]
-          pprof['interface_name'] = ifp.instance_name
-          pprof['interface_type_name'] = ifp.type_name
-          pprof['interface_polarity'] = ifp.polarity
-        res.append( (pp.name, pprof))
-    else:
-      print("No such RTC:", name)
-    return res
 
-  #
-  # get DataInPort
-  def getInPorts(self, name, info=""):
-    res=[]
-    dtype=""
-    if name.count(".rtc") == 0 : name = name+".rtc"
-    if not (name in self.object_list):
-      self.refreshObjectList()
-    
-    if info:
-      oname = info.split(":")
-      dtype = self.getPortDataType(oname[0], oname[1])
-  
-    if name in self.object_list:
-      port_ref = self.object_list[name].get_ports()
-      for p in port_ref:
-        pp = p.get_port_profile()
-        pprof =  nvlist2dict(pp.properties)
-
-        if pprof['port.port_type'] == 'DataInPort' and (info == "" or pprof['dataport.data_type'] == dtype):
-          if pp.interfaces:
-            ifp=pp.interfaces[0]
-            pprof['interface_name'] = ifp.instance_name
-            pprof['interface_type_name'] = ifp.type_name
-            pprof['interface_polarity'] = ifp.polarity
-          res.append( (pp.name, pprof))
-    else:
-      print("No such RTC:", name)
-    return res
-
-  #
-  # get DataOutPort
-  def getOutPorts(self, name):
-    res=[]
-    if name.count(".rtc") == 0 : name = name+".rtc"
-    if not (name in self.object_list):
-      self.refreshObjectList()
-
-    if name in self.object_list:
-      port_ref = self.object_list[name].get_ports()
-      for p in port_ref:
-        pp = p.get_port_profile()
-        pprof =  nvlist2dict(pp.properties)
-        if pprof['port.port_type'] == 'DataOutPort' :
+        if filter is None or filter(pprof, f_arg) :
           if pp.interfaces:
             ifp=pp.interfaces[0]
             pprof['interface_name'] = ifp.instance_name
@@ -1006,7 +964,13 @@ class RtCmd(cmd.Cmd):
     try:
       objname, pname=text.split(':',1)
       if objname:
-        ports=self.rtsh.getInPorts(objname, info)
+        if info:
+          oname = info.split(":")
+          dtype = self.rtsh.getPortDataType(oname[0], oname[1])
+        else:
+          dtype = info
+
+        ports=self.rtsh.getPorts(objname, isDataInport, dtype)
         pnames=[]
         for pp in ports:
           pnames.append(pp[0].split('.')[1])
@@ -1027,7 +991,7 @@ class RtCmd(cmd.Cmd):
     try:
       objname, pname=text.split(':',1)
       if objname:
-        ports=self.rtsh.getOutPorts(objname)
+        ports=self.rtsh.getPorts(objname, isDataOutport)
         pnames=[]
         for pp in ports:
           pnames.append(pp[0].split('.')[1])
