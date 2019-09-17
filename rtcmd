@@ -23,6 +23,7 @@ import subprocess
 import platform
 import threading
 import socket
+import signal
 
 try:
   import readline
@@ -214,14 +215,14 @@ class Rtc_Sh:
       return None
 
   def wait_for(self, name, timeout=0, func=None, flag=True):
-    loop=True
+    self.loop=True
     end_time=time.time() + timeout
     if func is None: func = self.resolveRTObject
-    while loop :
+    while self.loop :
       res=func(name)
       if (not res) == flag:
         if timeout > 0 and time.time() > end_time:
-          loop=False
+          self.loop=False
         time.sleep(0.3)
       else:
         return True
@@ -636,7 +637,7 @@ class Rtc_Sh:
       try:
         ctm=time.time()
         self._data[name].tm.sec = int(ctm) 
-        self._data[name].tm.nsec = (ctm - self._data[name].tm.sec) * 1000000000
+        self._data[name].tm.nsec = int((ctm - self._data[name].tm.sec) * 1000000000)
       except:
         pass
       self.writeData(name)
@@ -753,6 +754,7 @@ class RtCmd(cmd.Cmd):
 
     self._error=0
     self._rtc_state=None
+    self.loop=False
   #
   #
   def __del__(self):
@@ -1275,6 +1277,7 @@ class RtCmd(cmd.Cmd):
   #
   #
   def close(self):
+    self.loop=False
     if self.file:
       self.file.close()
       self.file = None
@@ -1371,9 +1374,9 @@ class RtCmd(cmd.Cmd):
       # send data
       ctm=time.time()
       if not data.strip() :
-        loop = True
+        self.loop = True
         count=0
-        while loop:
+        while self.loop:
           if nloop > 0 and count >= nloop: break
           print("inject ==> ", end="")
           try:
@@ -1381,7 +1384,7 @@ class RtCmd(cmd.Cmd):
             self.sendData(data)
             count += 1
           except EOFError:
-            loop = False
+            self.loop = False
       else:
         if timeout > 0:
           while True:
@@ -1518,10 +1521,10 @@ class RtCmd(cmd.Cmd):
         for i in range(nloop):
           #
           # recieve data
-          loop = True
-          while loop:
+          self.loop = True
+          while self.loop:
             if self.rtsh.isNew("print"):
-              loop = False
+              self.loop = False
             time.sleep(0.3)
           data = self.rtsh.readData("print")
 
@@ -1654,7 +1657,9 @@ def main():
     subprocess.Popen(["cmd", "/c", "start", "rtm-naming.bat"])
 
   if len(sys.argv) > 1:
-    return  RtCmd(once=True).onecmd(" ".join(sys.argv[1:]))
+    rtcmd=RtCmd(once=True)
+    signal.signal(signal.SIGINT, lambda: rtcmd.close())
+    return  rtcmd.onecmd(" ".join(sys.argv[1:]))
   else:
     RtCmd().cmdloop(intro="Welcome to RtCmd")
 
