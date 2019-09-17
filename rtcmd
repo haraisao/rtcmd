@@ -118,6 +118,7 @@ def isDataOutport(prof, info):
     return (prof['port.port_type'] == 'DataOutPort')
   except:
     return True
+
 #########################################################################
 # DataListener:  This class connected with DataInPort
 #
@@ -370,9 +371,6 @@ class Rtc_Sh:
       name1, port1 = portname1.split(":")
       name2, port2 = portname2.split(":")
 
-      #p1=self.getPortRef(name1, port1)
-      #p2=self.getPortRef(name2, port2)
-
       cons  = self.getConnectors(name1, port1)
       cons2 = self.getConnectors(name2, port2)
       if cons and  cons2 :
@@ -388,38 +386,27 @@ class Rtc_Sh:
   #
   #
   def connect(self, portname1, portname2, service=False):
-    if service:
-      con_prof = {'port.port_type':'CorbaPort' }
-    else:
-      con_prof={'dataport.dataflow_type':'push',
-              'dataport.interface_type':'corba_cdr' ,
-              'dataport.subscription_type':'flush'}
-
     chk = self.find_connection(portname1, portname2)
     if chk is None:
         return None
     if chk :
        print("Conntction exists:", chk.connector_id)
-       return 
-    try:
-      name1, port1 = portname1.split(":")
-      name2, port2 = portname2.split(":")
-      p1=self.getPortRef(name1, port1)
-      p2=self.getPortRef(name2, port2)
-      if p1 and p2:
-        name='_'.join([name1, port1, name2, port2])
-        prof_req=ConnectorProfile(name, "", [p1, p2], dict2nvlist(con_prof))
-        res, prof=p1.connect(prof_req)
-      else:
-        res="Error in connect"
-    except:
-      res="Error"
-    print(res)
-    return
+       return
+
+    name1, port1 = portname1.split(":")
+    name2, port2 = portname2.split(":")
+    p1=self.getPortRef(name1, port1)
+    p2=self.getPortRef(name2, port2)
+    if p1 and p2:
+      name='_'.join([name1, port1, name2, port2])
+      return self.connect2(name, p1, p2, service)
+    else:
+      print("Error in connect: No such ports")
+    return None
   
   #
   #
-  def connect2(self, name, p1, p2, service=False):
+  def connect2(self, name, p1, p2, service=False, silent=True):
     if service:
       con_prof = {'port.port_type':'CorbaPort' }
     else:
@@ -431,9 +418,9 @@ class Rtc_Sh:
       res, prof=p1.connect(prof_req)
     except:
       res="Error  in connect2"
-      print(res)
+      if silent :print(res)
       return None
-    print("connect2", res)
+    if silent :print("connect2", res)
     return prof
 
   #
@@ -477,6 +464,16 @@ class Rtc_Sh:
     if obj :
       ec=obj.get_owned_contexts()[0]
       res=ec.deactivate_component(obj)
+    return res
+
+  #
+  #
+  def reset(self, name):
+    res=None
+    obj=self.resolveRTObject(name)
+    if obj :
+      ec=obj.get_owned_contexts()[0]
+      res=ec.reset_component(obj)
     return res
 
   #
@@ -619,7 +616,7 @@ class Rtc_Sh:
     elif sys.version_info.major == 2 and dtype == unicode:
       self._data[name].data = unicode(data)
 
-    elif (dtype == int  or dtype == float) and type(data) == dtype:
+    elif (dtype == int  or dtype == float) :
       try:
         self._data[name].data = dtype(data)
       except:
@@ -703,17 +700,13 @@ class RtCmd(cmd.Cmd):
     if self.rtsh :
       del self.rtsh
 
+  #
+  #
   def no_rtsh(self):
     if self.rtsh is None:
       print("No NameService")
       return True
     return False
-
-  ###
-  #  COMMAND: echo
-  def do_echo(self, arg):
-    print("Echo:", arg)
-    return self.onecycle
 
   ###
   #  CPMMAND: list
@@ -757,22 +750,22 @@ class RtCmd(cmd.Cmd):
             if typ == "DataInPort":
               d_typ=pp[1]['dataport.data_type'].split(":")[1]
               port_str = pname+"("+d_typ+")"
-              print("     <-", port_str, con_str)
+              print("    [in] ->", port_str, con_str)
 
             elif typ == "DataOutPort":
               d_typ=pp[1]['dataport.data_type'].split(":")[1]
               port_str = pname+"("+d_typ+")"
-              print("     ->", port_str, con_str)
+              print("    [out]<-", port_str, con_str)
 
             elif typ == "CorbaPort":
               d_typ=pp[1]['interface_type_name']
               if_dir=pp[1]['interface_polarity']
               port_str = pname+"("+d_typ+")"
               if if_dir == PROVIDED:
-                print("     =o", port_str, con_str)
+                print("     [ P ]=o", port_str, con_str)
 
               else:  # REQUIRED
-                print("     =C", port_str, con_str)
+                print("     [ C ]=C", port_str, con_str)
 
             else:
               port_str = pname
@@ -826,7 +819,6 @@ class RtCmd(cmd.Cmd):
       traceback.print_exc()
       completions=[]
     return [ objname+":"+p+" " for p in completions]
-    #return completions
 
   ###
   #  COMMAND: get_ports
@@ -848,7 +840,7 @@ class RtCmd(cmd.Cmd):
   #
   #
   def complete_get_ports(self, text, line, begind, endidx):
-    return self.compl_object_name(text, line, begind, endidx)
+    return self.compl_object_name(text, line, begind, endidx, " ")
 
   ###
   #  COMMAND: get_connectors
@@ -904,29 +896,8 @@ class RtCmd(cmd.Cmd):
       text=args[-1]
       return self.compl_port_name(text, line, begind, endidx)
     else:
-      return self.compl_object_name(text, line, begind, endidx)
+      return self.compl_object_name(text, line, begind, endidx, ":")
 
-  ###
-  #  COMMAND: disconnect
-  def do_disconnect(self, arg):
-    if self.no_rtsh() : return self.onecycle
-
-    argv=arg.split()
-    if len(argv) > 1:
-      self.rtsh.disconnect(argv[0], argv[1])
-    else:
-      print("disconnect comp1:p comp2:p")
-    return self.onecycle
-
-  #
-  #
-  def complete_disconnect(self, text, line, begind, endidx):
-    args=line.split()
-    if line[endidx-1] != ' ' and args[-1].find(':') > 0 :
-      text=args[-1]
-      return self.compl_port_name(text, line, begind, endidx)
-    else:
-      return self.compl_object_name(text, line, begind, endidx)
 
   ###
   #  COMMAND: connect
@@ -956,7 +927,7 @@ class RtCmd(cmd.Cmd):
       else:
         return self.compl_outport_name(text, line, begind, endidx)
     else:
-      return self.compl_object_name(text, line, begind, endidx)
+      return self.compl_object_name(text, line, begind, endidx, ":")
 
   #
   #
@@ -1009,6 +980,37 @@ class RtCmd(cmd.Cmd):
     else:
       return [ objname+":"+p for p in completions]
 
+
+  ###
+  #  COMMAND: disconnect
+  def do_disconnect(self, arg):
+    if self.no_rtsh() : return self.onecycle
+
+    argv=arg.split()
+    if len(argv) > 1:
+      self.rtsh.disconnect(argv[0], argv[1])
+    else:
+      print("disconnect comp1:p comp2:p")
+    return self.onecycle
+
+  #
+  #
+  def complete_disconnect(self, text, line, begind, endidx):
+    args=line.split()
+    try:
+      self._info=args[1]
+    except:
+      self._info=""
+
+    if line[endidx-1] != ' ' and args[-1].find(':') > 0 :
+      text=args[-1]
+      if(len(args) > 2):
+        return self.compl_inport_name(text, line, begind, endidx, self._info)
+      else:
+        return self.compl_outport_name(text, line, begind, endidx)
+    else:
+      return self.compl_object_name(text, line, begind, endidx, ":")
+
   ###
   #  COMMAND: activate
   def do_activate(self, arg):
@@ -1025,7 +1027,7 @@ class RtCmd(cmd.Cmd):
   #
   #
   def complete_activate(self, text, line, begind, endidx):
-    return self.compl_object_name(text, line, begind, endidx)
+    return self.compl_object_name(text, line, begind, endidx, " ")
 
   ###
   #  COMMAND: deactivate
@@ -1043,7 +1045,7 @@ class RtCmd(cmd.Cmd):
   #
   #
   def complete_deactivate(self, text, line, begind, endidx):
-    return self.compl_object_name(text, line, begind, endidx)
+    return self.compl_object_name(text, line, begind, endidx, " ")
 
   ###
   #  COMMAND: get_state
@@ -1057,7 +1059,25 @@ class RtCmd(cmd.Cmd):
   #
   #
   def complete_get_state(self, text, line, begind, endidx):
-    return self.compl_object_name(text, line, begind, endidx)
+    return self.compl_object_name(text, line, begind, endidx, " ")
+
+  ###
+  #  COMMAND: reset
+  def do_reset(self, arg):
+    if self.no_rtsh() : return self.onecycle
+
+    self.rtsh.getRTObjectList()
+    argv=arg.split()
+    for v in argv:
+      objs = self.get_object_names(v)
+      for obj in objs:
+        self.rtsh.reset(obj)
+
+    return self.onecycle
+  #
+  #
+  def complete_reset(self, text, line, begind, endidx):
+    return self.compl_object_name(text, line, begind, endidx, " ")
 
   ###
   #  COMMAND: terminate
@@ -1076,7 +1096,7 @@ class RtCmd(cmd.Cmd):
   #
   #
   def complete_terminate(self, text, line, begind, endidx):
-    return self.compl_object_name(text, line, begind, endidx)
+    return self.compl_object_name(text, line, begind, endidx, " ")
 
   ###
   #  COMMAND: unbind
@@ -1089,7 +1109,7 @@ class RtCmd(cmd.Cmd):
     return self.onecycle
 
   def complete_unbind(self, text, line, begind, endidx):
-    return self.compl_object_name(text, line, begind, endidx)
+    return self.compl_object_name(text, line, begind, endidx, " ")
 
   ###
   #  COMMAND: system
@@ -1157,7 +1177,7 @@ class RtCmd(cmd.Cmd):
     self.end=True
     return True
 
-  # ----- record and playback -----
+  # ----- record and playback 
   #
   #  COMMAND: record
   def do_record(self, arg):
@@ -1176,6 +1196,8 @@ class RtCmd(cmd.Cmd):
     if self.file and 'playback' not in line:
       print(line, file=self.file)
     return line
+
+  #  record and playback -----
 
   #
   #
@@ -1251,14 +1273,15 @@ class RtCmd(cmd.Cmd):
       return self.compl_inport_name(text, line, begind, endidx)
       #return self.compl_outport_name(text, line, begind, endidx)
     else:
-      return self.compl_object_name(text, line, begind, endidx)
+      return self.compl_object_name(text, line, begind, endidx, ":")
 
   def sendData(self, data):
-    try:
-      self.rtsh.send("injection", eval(data))
-    except:
-      self.rtsh.send("injection", data)
-    return 
+    self.rtsh.send("injection", data)
+    #try:
+    #  self.rtsh.send("injection", eval(data))
+    #except:
+    #  self.rtsh.send("injection", data)
+    #return 
 
   #
   #
@@ -1307,7 +1330,7 @@ class RtCmd(cmd.Cmd):
       text=args[-1]
       return self.compl_outport_name(text, line, begind, endidx)
     else:
-      return self.compl_object_name(text, line, begind, endidx)
+      return self.compl_object_name(text, line, begind, endidx, ":")
 
 
 #########################################
