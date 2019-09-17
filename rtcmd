@@ -229,10 +229,13 @@ class Rtc_Sh:
   #
   #
   def unbind(self, name):
-    name = name.replace("%h", socket.gethostname())
-    self.naming.unbind(name)
-    print("Unbind :", name)
-    return
+    try:
+      name = name.replace("%h", socket.gethostname())
+      self.naming.unbind(name)
+      print("Unbind :", name)
+      return True
+    except:
+      return False
 
   #
   #
@@ -414,7 +417,7 @@ class Rtc_Sh:
         return None
     if chk :
        print("Conntction exists:", chk.connector_id)
-       return
+       return chk.connector_id
 
     name1, port1 = portname1.split(":")
     name2, port2 = portname2.split(":")
@@ -453,11 +456,14 @@ class Rtc_Sh:
       con=self.find_connection(portname1, portname2)
       if con is None or not con:
         print("No such connrction:", portname1, portname2)
+        return False
        
       con.ports[0].disconnect(con.connector_id)
       print("Sucess to disconnect:", portname1, portname2)
+      return True
     except:
       print("Fail to disconnect:", portname1, portname2)
+      return False
 
   #
   #
@@ -627,6 +633,12 @@ class Rtc_Sh:
           self._data[name] = data
       except:
         return
+      try:
+        ctm=time.time()
+        self._data[name].tm.sec = int(ctm) 
+        self._data[name].tm.nsec = (ctm - self._data[name].tm.sec) * 1000000000
+      except:
+        pass
       self.writeData(name)
       return
 
@@ -662,6 +674,13 @@ class Rtc_Sh:
           self._data[name] = data
       except:
         return
+    try:
+      ctm=time.time()
+      self._data[name].tm.sec = int(ctm) 
+      self._data[name].tm.nsec = (ctm - self._data[name].tm.sec) * 1000000000
+    except:
+      pass
+
     self.writeData(name)
 
   #
@@ -669,7 +688,7 @@ class Rtc_Sh:
   def writeData(self, name, no_thread=True):
     try:
       if no_thread:
-        self._port[name].write(self._data[name])
+        return self._port[name].write(self._data[name])
       else:
         if self._send_thread :
           self._send_thread.join(1)
@@ -732,15 +751,22 @@ class RtCmd(cmd.Cmd):
     self._info=""
     self.processes = []
 
+    self._error=0
+    self._rtc_state=None
+  #
+  #
   def __del__(self):
+    self.close()
     if self.rtsh :
       del self.rtsh
+
 
   #
   #
   def no_rtsh(self):
     if self.rtsh is None:
       print("No NameService")
+      self._error = 1
       return True
     return False
 
@@ -811,6 +837,7 @@ class RtCmd(cmd.Cmd):
       else:
         print(num, ":[", n[0], "]")
     print("")
+
     return self.onecycle
 
   #
@@ -855,6 +882,7 @@ class RtCmd(cmd.Cmd):
     except:
       traceback.print_exc()
       completions=[]
+      self._error = 1
     return [ objname+":"+p+" " for p in completions]
 
   ###
@@ -921,8 +949,10 @@ class RtCmd(cmd.Cmd):
           num += 1
       else:
         print("No connection")
+        self._error = 1
     else:
       print("get_connection comp1:p comp2:p")
+      self._error = 1
     return self.onecycle
 
   #
@@ -942,9 +972,11 @@ class RtCmd(cmd.Cmd):
 
     argv=arg.split()
     if len(argv) > 1:
-      self.rtsh.connect(argv[0], argv[1])
+      res=self.rtsh.connect(argv[0], argv[1])
+      if res is None: self._error = 1
     else:
       print("connect comp1:p comp2:p")
+      self._error=1
     return self.onecycle
 
   #
@@ -1024,9 +1056,11 @@ class RtCmd(cmd.Cmd):
 
     argv=arg.split()
     if len(argv) > 1:
-      self.rtsh.disconnect(argv[0], argv[1])
+      res=self.rtsh.disconnect(argv[0], argv[1])
+      if not res: self._error = 1 
     else:
       print("disconnect comp1:p comp2:p")
+      self._error = 1
     return self.onecycle
 
   #
@@ -1044,7 +1078,8 @@ class RtCmd(cmd.Cmd):
     for v in argv:
       objs = self.get_object_names(v)
       for obj in objs:
-        self.rtsh.activate(obj)
+        res=self.rtsh.activate(obj)
+        if res == RTC.RTC_ERROR: self._error=1
     return self.onecycle
 
   #
@@ -1062,7 +1097,8 @@ class RtCmd(cmd.Cmd):
     for v in argv:
       objs = self.get_object_names(v)
       for obj in objs:
-        self.rtsh.deactivate(obj)
+        res=self.rtsh.deactivate(obj)
+        if res == RTC.RTC_ERROR: self._error=1
     return self.onecycle
 
   #
@@ -1077,6 +1113,7 @@ class RtCmd(cmd.Cmd):
 
     stat=self.rtsh.get_component_state(arg)
     print("State:", arg,":", stat)
+    self._rtc_state=stat
     return self.onecycle
 
   #
@@ -1094,8 +1131,8 @@ class RtCmd(cmd.Cmd):
     for v in argv:
       objs = self.get_object_names(v)
       for obj in objs:
-        self.rtsh.reset(obj)
-
+        res=self.rtsh.reset(obj)
+        if res == RTC.RTC_ERROR: self._error=1
     return self.onecycle
   #
   #
@@ -1112,8 +1149,8 @@ class RtCmd(cmd.Cmd):
     for v in argv:
       objs = self.get_object_names(v)
       for obj in objs:
-        self.rtsh.terminate(obj)
-
+        res=self.rtsh.terminate(obj)
+        if res == RTC.RTC_ERROR: self._error=1
     return self.onecycle
 
   #
@@ -1128,7 +1165,9 @@ class RtCmd(cmd.Cmd):
 
     argv=arg.split()
     for v in argv:
-      self.rtsh.unbind(v)
+      res = self.rtsh.unbind(v)
+      if not res: self._error = 1
+
     return self.onecycle
 
   def complete_unbind(self, text, line, begind, endidx):
@@ -1143,6 +1182,7 @@ class RtCmd(cmd.Cmd):
       self.processes.append(proc)
     except:
       traceback.print_exc()
+      self._error = 1
 
   ###
   #  COMMAND: start
@@ -1154,6 +1194,7 @@ class RtCmd(cmd.Cmd):
       self.processes.append(proc)
     except:
       traceback.print_exc()
+      self._error = 1
 
   ###
   #  COMMAND: killall
@@ -1182,11 +1223,15 @@ class RtCmd(cmd.Cmd):
         cmd = cmd.split("#")[0].strip()
         if cmd :
           self.onecmd(cmd)
+          if self._error > 0:
+            return self.onecycle
+    self.onecycle
 
   ###
   #  COMMAND: sleep
   def do_sleep(self, arg):
     time.sleep(int(arg))
+    self.onecycle
 
   ###
   #  COMMAND: bye
@@ -1205,6 +1250,7 @@ class RtCmd(cmd.Cmd):
   #  COMMAND: record
   def do_record(self, arg):
     self.file = open(arg, 'w')
+    self.onecycle
 
   ###
   #  COMMAND: playback
@@ -1212,10 +1258,14 @@ class RtCmd(cmd.Cmd):
     self.close()
     with open(arg) as f:
       self.cmdqueue.extend(f.read().splitlines())
+    self.onecycle
   #
   #
   def precmd(self, line):
     #line = line.lower()
+    self._error = 0
+    self._rtc_state=None
+
     if self.file and 'playback' not in line:
       print(line, file=self.file)
     return line
@@ -1228,7 +1278,7 @@ class RtCmd(cmd.Cmd):
     if self.file:
       self.file.close()
       self.file = None
-    if self.rtsh.manager:
+    if self.rtsh and self.rtsh.manager:
       self.rtsh.manager.shutdown()
 
   #
@@ -1243,10 +1293,10 @@ class RtCmd(cmd.Cmd):
     retval = [a[3:]+" " for a in self.get_names() if a.startswith(dotext)]
     return retval
 
-  # ---------- injection -------
+  # ---------- inject -------
   #
-  #  COMMAND: injection
-  def do_injection(self, arg):
+  #  COMMAND: inject
+  def do_inject(self, arg):
     if self.no_rtsh() : return self.onecycle
   
     argv=arg.split(" ")
@@ -1267,6 +1317,7 @@ class RtCmd(cmd.Cmd):
         except:
           print("Error in import module")
           pass
+
       elif argv[i] == "-n":
         i += 1
         try:
@@ -1303,8 +1354,8 @@ class RtCmd(cmd.Cmd):
     dtype = self.rtsh.getPortDataType(cname, pname)
     if dtype :
       #dtype2 = dtype.split(":")[1].replace("RTC/", "")
-      dtype2 = dtype.split(":")[1]
-      dtype2 = dtype2.replace("/", ".")
+      dtype2 = dtype.split(":")[1].replace("/", ".")
+      #dtype2 = dtype2.replace("/", ".")
       pref = self.rtsh.getPortRef(cname, pname)
       #
       # Create inport and connect
@@ -1312,8 +1363,8 @@ class RtCmd(cmd.Cmd):
         self.rtsh.initRtmManager()
         self.rtsh.refreshObjectList()
 
-      self.rtsh.createDataPort("injection", dtype2, "rtcout")
-      cprof=self.rtsh.connect2("injection_"+cname+"_"+pname, self.rtsh._port["injection"]._objref, pref)
+      self.rtsh.createDataPort("inject", dtype2, "rtcout")
+      cprof=self.rtsh.connect2("inject_"+cname+"_"+pname, self.rtsh._port["inject"]._objref, pref)
       print("=======")
 
       #
@@ -1324,7 +1375,7 @@ class RtCmd(cmd.Cmd):
         count=0
         while loop:
           if nloop > 0 and count >= nloop: break
-          print("injection ==> ", end="")
+          print("inject ==> ", end="")
           try:
             data=input()
             self.sendData(data)
@@ -1343,11 +1394,11 @@ class RtCmd(cmd.Cmd):
             self.sendData(data)
             if i < nloop-1:
               time.sleep(intval)
-
+      
       #
       # disconnect
-      self.rtsh._port["injection"].disconnect(cprof.connector_id)
-      print("-- disconnect injection",self.onecycle)
+      self.rtsh._port["inject"].disconnect(cprof.connector_id)
+      print("-- disconnect inject",self.onecycle)
       
     if self.onecycle: self.close()
 
@@ -1355,7 +1406,7 @@ class RtCmd(cmd.Cmd):
 
   #
   #
-  def complete_injection(self, text, line, begind, endidx):
+  def complete_inject(self, text, line, begind, endidx):
     args=line.split()
 
     if line[endidx-1] != ' ' and args[-1].find(':') > 0 :
@@ -1366,11 +1417,11 @@ class RtCmd(cmd.Cmd):
       return self.compl_object_name(text, line, begind, endidx, ":")
 
   def sendData(self, data, raw=False):
-    self.rtsh.send("injection", data, raw)
+    self.rtsh.send("inject", data, raw)
     #try:
-    #  self.rtsh.send("injection", eval(data))
+    #  self.rtsh.send("inject", eval(data))
     #except:
-    #  self.rtsh.send("injection", data)
+    #  self.rtsh.send("inject", data)
     #return 
 
   #
