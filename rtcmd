@@ -994,7 +994,7 @@ class RtCmd(cmd.Cmd):
 
   #
   #
-  def compl_outport_name(self, text, line, begind, endidx):
+  def compl_outport_name(self, text, line, begind, endidx, sp=" "):
     try:
       objname, pname=text.split(':',1)
       if objname:
@@ -1012,7 +1012,7 @@ class RtCmd(cmd.Cmd):
       traceback.print_exc()
       completions=[]
     if len(completions) == 1:
-      return [ objname+":"+p+" " for p in completions]
+      return [ objname+":"+p+sp for p in completions]
     else:
       return [ objname+":"+p for p in completions]
 
@@ -1317,6 +1317,19 @@ class RtCmd(cmd.Cmd):
   
     argv=arg.split(" ")
     cname, pname = argv[0].split(":")
+    try:
+      pname, formatter = pname.split("#")
+    except:
+      formatter = None
+    
+    try:
+      if argv[1] == "-m":
+        module="import "+ argv[2]
+        exec(module, globals())
+    except:
+      print("Error in import module")
+      pass
+
     dtype = self.rtsh.getPortDataType(cname, pname)
 
     if dtype :
@@ -1341,7 +1354,14 @@ class RtCmd(cmd.Cmd):
           loop = False
         time.sleep(0.3)
       data = self.rtsh.readData("print")
-      print(data)
+      if formatter :
+        try:
+          fmt=eval(formatter)
+          print(fmt(data))
+        except:
+          print(data)
+      else:
+        print(data)
       #
       # disconnect
       self.rtsh._port["print"].disconnect(cprof.connector_id)
@@ -1358,7 +1378,7 @@ class RtCmd(cmd.Cmd):
 
     if line[endidx-1] != ' ' and args[-1].find(':') > 0 :
       text=args[-1]
-      return self.compl_outport_name(text, line, begind, endidx)
+      return self.compl_outport_name(text, line, begind, endidx, "")
     else:
       return self.compl_object_name(text, line, begind, endidx, ":")
 
@@ -1424,6 +1444,11 @@ def execute_from_file(fname):
     cmds = f.read()
     for cmd in cmds.split("\n"):
       rtcmd.onecmd(cmd)
+
+def fmt_TimedString(data):
+  res = "Time: %d\n" % (data.tm.sec + data.tm.nsec/10000000.0)
+  res += "Data: %s" % data.data
+  return res
 
 ####
 #   M A I N
