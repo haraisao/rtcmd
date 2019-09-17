@@ -22,6 +22,7 @@ import traceback
 import subprocess
 import platform
 import threading
+import socket
 
 try:
   import readline
@@ -168,11 +169,14 @@ class Rtc_Sh:
   #
   #
   def __del__(self):
-    if self.manager:
-      self.manager.shutdown()
-    else:
-      self.orb.shutdown(wait_for_completion=CORBA.FALSE)
-      self.orb.destroy()
+    try:
+      if self.manager:
+        self.manager.shutdown()
+      else:
+        self.orb.shutdown(wait_for_completion=CORBA.FALSE)
+        self.orb.destroy()
+    except:
+      pass
 
   #
   #
@@ -201,6 +205,7 @@ class Rtc_Sh:
   def resolveRTObject(self, name):
     try:
       if name.count(".rtc") == 0 : name = name+".rtc"
+      name = name.replace("%h", socket.gethostname())
       ref=self.naming.resolveStr(name)
       ref._non_existent()
       return ref._narrow(RTObject)
@@ -208,9 +213,23 @@ class Rtc_Sh:
       #traceback.print_exc()
       return None
 
+  def wait_for(self, name, timeout=0, func=None, flag=True):
+    loop=True
+    end_time=time.time() + timeout
+    if func is None: func = self.resolveRTObject
+    while loop :
+      res=func(name)
+      if (not res) == flag:
+        if timeout > 0 and time.time() > end_time:
+          loop=False
+        time.sleep(0.3)
+      else:
+        return True
+    return False
   #
   #
   def unbind(self, name):
+    name = name.replace("%h", socket.gethostname())
     self.naming.unbind(name)
     print("Unbind :", name)
     return
@@ -229,7 +248,6 @@ class Rtc_Sh:
     binds, bind_i = name_context.list(self.maxlen)
     for bind in binds:
       res = res + self.resolveBindings(bind, name_context, parent)
-
     if bind_i :
       tl = bind_i.next_n(self.maxlen)
       while tl[0]:
@@ -280,6 +298,8 @@ class Rtc_Sh:
   def getPorts(self, name, filter=None, f_arg=None):
     res=[]
     if name.count(".rtc") == 0 : name = name+".rtc"
+    name = name.replace("%h", socket.gethostname())
+
     if not (name in self.object_list):
       self.refreshObjectList()
 
@@ -308,6 +328,7 @@ class Rtc_Sh:
       self.refreshObjectList()
 
     if name.count(".rtc") == 0 : name = name+".rtc"
+    name = name.replace("%h", socket.gethostname())
 
     if name in self.object_list:
       port_ref = self.object_list[name].get_ports()
@@ -324,6 +345,8 @@ class Rtc_Sh:
   def getPortDataType(self, name, port):
     res=[]
     if name.count(".rtc") == 0 : name = name+".rtc"
+    name = name.replace("%h", socket.gethostname())
+
     if not (name in self.object_list):
       self.refreshObjectList()
 
@@ -510,7 +533,6 @@ class Rtc_Sh:
                             OpenRTM_aist.ConnectorDataListenerType.ON_BUFFER_WRITE,
                             RtcDataListener(name, type, self))
 
-        #self._port[name].configure()
         self._port[name].initConsumers()
         self._port[name].initProviders()
         self._port[name].setConnectionLimit(10)
@@ -594,8 +616,19 @@ class Rtc_Sh:
   #
   # Send Data 
   #
-  def send(self, name, data, code='utf-8'):
+  def send(self, name, data, code='utf-8', raw=False):
     dtype = self.adaptortype[name][1]
+
+    if raw :
+      try:
+        if type(data) == str :
+          self._data[name] = apply(dtype, eval(data))
+        else:
+          self._data[name] = data
+      except:
+        return
+      self.writeData(name)
+      return
 
     if self.adaptortype[name][2]:
       ndata = []
@@ -633,12 +666,15 @@ class Rtc_Sh:
 
   #
   #
-  def writeData(self, name):
+  def writeData(self, name, no_thread=True):
     try:
-      if self._send_thread :
-        self._send_thread.join(1)
-      self._send_thread=threading.Thread(target=self._port[name].write, name="send_data", args=(self._data[name],))
-      self._send_thread.start()
+      if no_thread:
+        self._port[name].write(self._data[name])
+      else:
+        if self._send_thread :
+          self._send_thread.join(1)
+        self._send_thread=threading.Thread(target=self._port[name].write, name="send_data", args=(self._data[name],))
+        self._send_thread.start()
     except:
       pass
   #
@@ -718,7 +754,7 @@ class RtCmd(cmd.Cmd):
 
     if len(argv) > 0:
       if argv[0] == '-r':
-        self.rtsh.refreshRTObjectList()
+        self.rtsh.refreshObjectList()
       elif argv[0] == '-l':
         l_flag=True
       else:
@@ -726,6 +762,7 @@ class RtCmd(cmd.Cmd):
   
     print("===== RTCs =====")
     res = self.rtsh.getRTObjectList()
+
     for n in res:
       num += 1
       if n[1]:
@@ -898,7 +935,6 @@ class RtCmd(cmd.Cmd):
     else:
       return self.compl_object_name(text, line, begind, endidx, ":")
 
-
   ###
   #  COMMAND: connect
   def do_connect(self, arg):
@@ -996,20 +1032,7 @@ class RtCmd(cmd.Cmd):
   #
   #
   def complete_disconnect(self, text, line, begind, endidx):
-    args=line.split()
-    try:
-      self._info=args[1]
-    except:
-      self._info=""
-
-    if line[endidx-1] != ' ' and args[-1].find(':') > 0 :
-      text=args[-1]
-      if(len(args) > 2):
-        return self.compl_inport_name(text, line, begind, endidx, self._info)
-      else:
-        return self.compl_outport_name(text, line, begind, endidx)
-    else:
-      return self.compl_object_name(text, line, begind, endidx, ":")
+    return self.complete_connect(text, line, begind, endidx)
 
   ###
   #  COMMAND: activate
@@ -1227,17 +1250,19 @@ class RtCmd(cmd.Cmd):
     if self.no_rtsh() : return self.onecycle
   
     argv=arg.split(" ", 1)
-
     cname, pname =argv[0].split(":")
 
     dtype = self.rtsh.getPortDataType(cname, pname)
     if dtype :
-      dtype2 = dtype.split(":")[1].replace("RTC/", "")
+      #dtype2 = dtype.split(":")[1].replace("RTC/", "")
+      dtype2 = dtype.split(":")[1]
       dtype2 = dtype2.replace("/", ".")
       pref = self.rtsh.getPortRef(cname, pname)
       #
       # Create inport and connect
-      if self.rtsh.manager is None: self.rtsh.initRtmManager()
+      if self.rtsh.manager is None:
+        self.rtsh.initRtmManager()
+        self.rtsh.refreshObjectList()
 
       self.rtsh.createDataPort("injection", dtype2, "rtcout")
       cprof=self.rtsh.connect2("injection_"+cname+"_"+pname, self.rtsh._port["injection"]._objref, pref)
@@ -1247,7 +1272,7 @@ class RtCmd(cmd.Cmd):
       if len(argv) == 1:
         loop = True
         while loop:
-          print("==> ", end="")
+          print("injection ==> ", end="")
           try:
             data=input()
             self.sendData(data)
@@ -1265,6 +1290,8 @@ class RtCmd(cmd.Cmd):
 
     return self.onecycle
 
+  #
+  #
   def complete_injection(self, text, line, begind, endidx):
     args=line.split()
 
@@ -1275,8 +1302,8 @@ class RtCmd(cmd.Cmd):
     else:
       return self.compl_object_name(text, line, begind, endidx, ":")
 
-  def sendData(self, data):
-    self.rtsh.send("injection", data)
+  def sendData(self, data, raw=False):
+    self.rtsh.send("injection", data, raw)
     #try:
     #  self.rtsh.send("injection", eval(data))
     #except:
@@ -1288,17 +1315,20 @@ class RtCmd(cmd.Cmd):
   def do_print(self, arg):
     if self.no_rtsh() : return self.onecycle
   
-    argv=arg.split(" ", 1)
-    cname, pname =argv[0].split(":")
+    argv=arg.split(" ")
+    cname, pname = argv[0].split(":")
     dtype = self.rtsh.getPortDataType(cname, pname)
 
     if dtype :
-      dtype2 = dtype.split(":")[1].replace("RTC/", "")
+      #dtype2 = dtype.split(":")[1].replace("RTC/", "")
+      dtype2 = dtype.split(":")[1]
       dtype2 = dtype2.replace("/", ".")
       pref = self.rtsh.getPortRef(cname, pname)
       #
       # Create inport and connect
-      if self.rtsh.manager is None: self.rtsh.initRtmManager()
+      if self.rtsh.manager is None:
+        self.rtsh.initRtmManager()
+        self.rtsh.refreshObjectList()
 
       self.rtsh.createDataPort("print", dtype2, "rtcin")
       cprof=self.rtsh.connect2("print_"+cname+"_"+pname, self.rtsh._port["print"]._objref, pref)
@@ -1331,6 +1361,45 @@ class RtCmd(cmd.Cmd):
       return self.compl_outport_name(text, line, begind, endidx)
     else:
       return self.compl_object_name(text, line, begind, endidx, ":")
+
+  #
+  # COMMAD waite_for
+  def do_wait_for(self, arg):
+    try:
+      if self.no_rtsh() : return self.onecycle
+      func=None
+      flag=True
+      argv=arg.split(" ")
+      if len(argv) > 1: timeout=int(argv[1])
+      else: timeout=30
+
+      if len(argv) > 2: func=eval(argv[2])
+      if len(argv) > 3: flag=eval(argv[3])
+
+      res=self.rtsh.wait_for(argv[0], timeout, func=func, flag=flag)
+      if not res:
+        print("==== time out =====")
+      else:
+        print("OK")
+    except:
+      print("===ERROR===")
+    return self.onecycle
+
+  def complete_wait_for(self, text, line, begind, endidx):
+    return self.compl_object_name(text, line, begind, endidx, " ")
+
+  def check_active(self, name):
+    stat=self.rtsh.get_component_state(name)
+    if stat == ACTIVE_STATE: return True
+    else: return False
+
+  def find_rtc(self, name):
+    if name.count(".rtc") == 0 : name = name+".rtc"
+    stat=self.rtsh.refreshObjectList()
+    names=list(self.rtsh.object_list.keys())
+    for n in names:
+      if n.find(name) >= 0: return True
+    return False
 
 
 #########################################
