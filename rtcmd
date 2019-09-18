@@ -636,17 +636,22 @@ class Rtc_Sh:
     if raw :
       try:
         if type(data) == str :
+          ctm=time.time()
+          tm="RTC.Time(%d,%d)" % (int(ctm), int((ctm - int(ctm))*1000000000))
+          data.replace('{time}', tm)
           self._data[name] = apply(dtype, eval(data))
         else:
           self._data[name] = data
       except:
         return
+      '''
       try:
         ctm=time.time()
         self._data[name].tm.sec = int(ctm) 
         self._data[name].tm.nsec = int((ctm - self._data[name].tm.sec) * 1000000000)
       except:
         pass
+      '''
       self.writeData(name)
       return
 
@@ -1345,6 +1350,7 @@ class RtCmd(cmd.Cmd):
     data=""
     intval = 1
     timeout=0
+    raw=False
 
     for i in range(len(argv)):
       if argv[i] == "-m":
@@ -1377,6 +1383,8 @@ class RtCmd(cmd.Cmd):
         except:
           print("Invalid options")
           pass
+      elif argv[i] == "--raw":
+        raw=True
       elif argv[i] == "-c":
         i += 1
         data = ' '.join(argv[i:])
@@ -1416,20 +1424,20 @@ class RtCmd(cmd.Cmd):
           print("inject ==> ", end="")
           try:
             data=input()
-            self.sendData(data)
+            self.sendData(data,raw)
             count += 1
           except EOFError:
             self.loop = False
       else:
         if timeout > 0:
           while True:
-            self.sendData(data)
+            self.sendData(data, raw)
             time.sleep(intval)
             if time.time() > ctm+timeout: break
         else:
           if nloop <= 0: nloop=1
           for i in range(nloop):
-            self.sendData(data)
+            self.sendData(data, raw)
             if i < nloop-1:
               time.sleep(intval)
       
@@ -1455,7 +1463,7 @@ class RtCmd(cmd.Cmd):
       return self.compl_object_name(text, line, begind, endidx, ":")
 
   def sendData(self, data, raw=False):
-    self.rtsh.send("inject", data, raw)
+    self.rtsh.send("inject", data, raw=raw)
     #try:
     #  self.rtsh.send("inject", eval(data))
     #except:
