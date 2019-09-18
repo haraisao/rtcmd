@@ -1224,8 +1224,10 @@ class RtCmd(cmd.Cmd):
       for cmd in cmds.split("\n"):
         cmd = cmd.split("#")[0].strip()
         if cmd :
+          print("execute:", cmd)
           self.onecmd(cmd)
           if self._error > 0:
+            print("ERROR", self._error)
             return self.onecycle
     self.onecycle
 
@@ -1403,7 +1405,7 @@ class RtCmd(cmd.Cmd):
       self.rtsh._port["inject"].disconnect(cprof.connector_id)
       print("-- disconnect inject",self.onecycle)
       
-    if self.onecycle: self.close()
+    #if self.onecycle: self.close()
 
     return self.onecycle
 
