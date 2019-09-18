@@ -678,7 +678,7 @@ class Rtc_Sh:
     try:
       ctm=time.time()
       self._data[name].tm.sec = int(ctm) 
-      self._data[name].tm.nsec = (ctm - self._data[name].tm.sec) * 1000000000
+      self._data[name].tm.nsec = int((ctm - self._data[name].tm.sec) * 1000000000)
     except:
       pass
 
