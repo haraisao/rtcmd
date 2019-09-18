@@ -1402,7 +1402,7 @@ class RtCmd(cmd.Cmd):
 
       self.rtsh.createDataPort("inject", dtype2, "rtcout")
       cprof=self.rtsh.connect2("inject_"+cname+"_"+pname, self.rtsh._port["inject"]._objref, pref)
-      print("=======")
+      print("=== inject ====")
 
       #
       # send data
@@ -1435,7 +1435,7 @@ class RtCmd(cmd.Cmd):
       #
       # disconnect
       self.rtsh._port["inject"].disconnect(cprof.connector_id)
-      print("-- disconnect inject",self.onecycle)
+      #print("-- disconnect inject",self.onecycle)
       
     #if self.onecycle: self.close()
 
@@ -1474,6 +1474,7 @@ class RtCmd(cmd.Cmd):
     intval=1
     listener=False
     callback=None
+
     for i in range(len(argv)):
       if argv[i] == "-m":
         i += 1
@@ -1520,7 +1521,10 @@ class RtCmd(cmd.Cmd):
           try:
             pname, formatter = pname.split("#")
           except:
-            pass
+            try:
+              pname, formatter = pname.split("$")
+            except:
+              pass
 
     dtype = self.rtsh.getPortDataType(cname, pname)
 
@@ -1537,7 +1541,7 @@ class RtCmd(cmd.Cmd):
 
       self.rtsh.createDataPort("print", dtype2, "rtcin", listener)
       cprof=self.rtsh.connect2("print_"+cname+"_"+pname, self.rtsh._port["print"]._objref, pref)
-      print("=======")
+      print("=======print:", formatter)
       self.print_formatter=formatter
       try:
         if callback: self.print_callback = eval(callback)
@@ -1599,7 +1603,6 @@ class RtCmd(cmd.Cmd):
         #print("-- disconnect print",self.onecycle)
       
     #if self.onecycle: self.close()
-
     return self.onecycle
 
   #
@@ -1614,7 +1617,7 @@ class RtCmd(cmd.Cmd):
       return self.compl_object_name(text, line, begind, endidx, ":")
 
 
-  def do_disconnect_print(self, arg):
+  def do_print_exit(self, arg):
     if self.no_rtsh() : return self.onecycle
     if self.print_conection:
       self.rtsh._port["print"].disconnect(self.print_conection)
@@ -1630,6 +1633,7 @@ class RtCmd(cmd.Cmd):
           fmt=eval(self.print_formatter)
           print(fmt(data))
         except:
+          print("--format error: ", end="")
           print(data)
       else:
         print(data)
@@ -1724,13 +1728,16 @@ def fmt_TimedString(data):
 def main():
   if not check_process("omniNames") :
     subprocess.Popen(["cmd", "/c", "start", "rtm-naming.bat"])
+    time.sleep(2)
 
   if len(sys.argv) > 1:
     rtcmd=RtCmd(once=True)
     signal.signal(signal.SIGINT, lambda: rtcmd.close())
-    return  rtcmd.onecmd(" ".join(sys.argv[1:]))
+    rtcmd.onecmd(" ".join(sys.argv[1:]))
+    rtcmd.close()
   else:
     RtCmd().cmdloop(intro="Welcome to RtCmd")
+  return
 
 
 #########################################################################

@@ -1,0 +1,33 @@
+#
+#  Start Components
+# start eSEAT examples/SimpleIO
+start OpenJTalkRTC
+start JuliusRTC dictation
+
+#
+#  Wait for booting up the components
+wait_for JuliusRTC0 30
+wait_for OpenJTalkRTC0 30
+# wait_for SimpleIO 30
+
+#
+# Connect port
+connect OpenJTalkRTC0:result JuliusRTC0:data
+# connect JuliusRTC0:result SimpleIO:str_in
+
+#
+# Activat all components
+activate all
+
+wait_for JuliusRTC0 30 self.check_active
+wait_for OpenJTalkRTC0 30 self.check_active
+# wait_for SimpleIO 30 self.check_active
+
+print -m myfmt -l JuliusRTC0:result$myfmt.julius_result
+inject OpenJTalkRTC0:text -c こんにちは、今日はいい天気ですね。
+
+sleep 4
+
+#print_exit
+deactivate all
+terminate all
