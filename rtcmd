@@ -1249,9 +1249,10 @@ class RtCmd(cmd.Cmd):
 
     with open(fname, "r", encoding="utf-8") as f:
       cmds = f.read()
-      for cmd in cmds.split("\n"):
-        cmd = cmd.split("#")[0].strip()
+      for cmdline in cmds.split("\n"):
+        cmd = cmdline.split("#")[0].strip()
         if cmd :
+          if cmd.startswith('print'): cmd = cmdline
           if verbose: print("execute:", cmd)
           self.onecmd(cmd)
           if self._error > 0:
@@ -1476,6 +1477,7 @@ class RtCmd(cmd.Cmd):
     callback=None
 
     for i in range(len(argv)):
+      if argv[i].startswith("#") : break
       if argv[i] == "-m":
         i += 1
         try:
