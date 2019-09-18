@@ -1219,7 +1219,7 @@ class RtCmd(cmd.Cmd):
   ###
   #  COMMAND: launch
   def do_launch(self, arg):
-    with open(arg, "r") as f:
+    with open(arg, "r", encoding="utf-8") as f:
       cmds = f.read()
       for cmd in cmds.split("\n"):
         cmd = cmd.split("#")[0].strip()
@@ -1251,14 +1251,14 @@ class RtCmd(cmd.Cmd):
   #
   #  COMMAND: record
   def do_record(self, arg):
-    self.file = open(arg, 'w')
+    self.file = open(arg, "w", encoding="utf-8")
     self.onecycle
 
   ###
   #  COMMAND: playback
   def do_playback(self, arg):
     self.close()
-    with open(arg) as f:
+    with open(arg, "r", encoding="utf-8") as f:
       self.cmdqueue.extend(f.read().splitlines())
     self.onecycle
   #
@@ -1637,13 +1637,6 @@ def dict2nvlist(dict) :
   for tmp in dict.keys() :
     rslt.append(SDOPackage.NameValue(tmp, omniORB.any.to_any(dict[tmp])))
   return rslt
-
-def execute_from_file(fname):
-  rtcmd=RtCmd()
-  with open(fname, "r") as f:
-    cmds = f.read()
-    for cmd in cmds.split("\n"):
-      rtcmd.onecmd(cmd)
 
 def fmt_TimedString(data):
   res = "Time: %d\n" % (data.tm.sec + data.tm.nsec/10000000000.0)
