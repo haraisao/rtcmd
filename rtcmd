@@ -1563,7 +1563,7 @@ class RtCmd(cmd.Cmd):
   def do_wait_for(self, arg):
     try:
       if self.no_rtsh() : return self.onecycle
-      func=None
+      func=self.find_rtc
       flag=True
       argv=arg.split(" ")
       if len(argv) > 1: timeout=int(argv[1])
@@ -1646,7 +1646,7 @@ def execute_from_file(fname):
       rtcmd.onecmd(cmd)
 
 def fmt_TimedString(data):
-  res = "Time: %d\n" % (data.tm.sec + data.tm.nsec/10000000.0)
+  res = "Time: %d\n" % (data.tm.sec + data.tm.nsec/10000000000.0)
   res += "Data: %s" % data.data
   return res
 
