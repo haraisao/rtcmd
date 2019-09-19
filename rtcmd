@@ -127,6 +127,17 @@ def isDataOutport(prof, info):
   except:
     return True
 
+def format_connection(con):
+  res=""
+  res+=" %s\n" % con[0].connector_id
+  res+="   name: %s\n" % con[0].name
+  res+="   ports: %s\n" % con[0].ports
+  res+="   properties: [\n" 
+  for x in con[0].properties:
+    res += "     %s: %s\n" % (x.name, x.value)
+  res+="   ]\n" 
+  return res
+  
 #########################################################################
 # DataListener:  This class connected with DataInPort
 #
@@ -446,6 +457,25 @@ class Rtc_Sh:
             if c.connector_id == c2.connector_id:
               return c
       return False
+    except:
+      traceback.print_exc()
+      return None
+
+ #
+  #
+  def find_connections(self, portname1, portname2):
+    try:
+      name1, port1 = portname1.split(":")
+      name2, port2 = portname2.split(":")
+      res=[]
+      cons  = self.getConnectors(name1, port1)
+      cons2 = self.getConnectors(name2, port2)
+      if cons and  cons2 :
+        for c in cons:
+          for c2 in cons2:
+            if c.connector_id == c2.connector_id:
+              res.append(c)
+      return res
     except:
       traceback.print_exc()
       return None
@@ -848,8 +878,10 @@ class RtCmd(cmd.Cmd):
       num += 1
       if n[1]:
         stat=self.rtsh.get_component_state(n[0])
-        if stat == ACTIVE_STATE:
+        if stat == RTC.ACTIVE_STATE:
           comp_name = n[0]+"*"
+        elif stat == RTC.ERROR_STATE:
+          comp_name = n[0]+"[X]"
         else:
           comp_name = n[0]
          
@@ -996,11 +1028,11 @@ class RtCmd(cmd.Cmd):
 
     argv=arg.split()
     if len(argv) > 1:
-      cons = self.rtsh.getConnections(argv[0], argv[1])
-      num=0
+      cons = self.rtsh.find_connections(argv[0], argv[1])
+      num=1
       if cons:
         for x in cons:
-          print(num, ":", cons)
+          print(num, ":", format_connection(cons))
           num += 1
       else:
         print("No connection")
@@ -1731,7 +1763,7 @@ class RtCmd(cmd.Cmd):
 
   def check_active(self, name):
     stat=self.rtsh.get_component_state(name)
-    if stat == ACTIVE_STATE: return True
+    if stat == RTC.ACTIVE_STATE: return True
     else: return False
 
   def find_rtc(self, name):
