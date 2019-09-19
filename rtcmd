@@ -1234,7 +1234,8 @@ class RtCmd(cmd.Cmd):
       print("No NameService")
       return self.onecycle
     self.rtsh.getRTObjectList()
-
+ 
+    return self.onecycle
   ###
   #  COMMAND: launch
   def do_launch(self, arg):
@@ -1249,8 +1250,9 @@ class RtCmd(cmd.Cmd):
       else:
         pass
   
-    if fname is None:
+    if fname is None or not os.path.exists(fname):
       self._error=1
+      print("No such file:", fname)
       return self.onecycle
 
     with open(fname, "r", encoding="utf-8") as f:
@@ -1740,9 +1742,11 @@ def main():
     signal.signal(signal.SIGINT, lambda: rtcmd.close())
     rtcmd.onecmd(" ".join(sys.argv[1:]))
     rtcmd.close()
+    print(rtcmd._error)
+    return 
   else:
     RtCmd().cmdloop(intro="Welcome to RtCmd")
-  return
+  return 
 
 
 #########################################################################
