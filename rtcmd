@@ -386,6 +386,36 @@ class Rtc_Sh:
  
   #
   #
+  def getAllConnectors(self, name):
+    res=[]
+    port_ref = self.object_list[name].get_ports()
+    for p in port_ref:
+      res.append( port_ref.get_connector_profiles() )
+    return res
+
+  def disconnectAll(self, name):
+    try:
+      connectors=self.getAllConnectors(name)
+      for con in connectors:
+        con.ports[0].disconnect(con.connector_id)
+    except:
+      print("Error in disconnectAll")
+      return False
+    return True
+
+  def disconnectAllPorts(self):
+    try:
+      for name in self._port:
+        connectors=self._port[name]._objref.get_connector_profiles()
+        for con in connectors:
+          con.ports[0].disconnect(con.connector_id)
+    except:
+      print("Error in disconnectAllPorts")
+      return False
+    return True
+  
+  #
+  #
   def getConnectionInfo(self, con):
     ports = [(con.ports[0].get_port_profile()).name, (con.ports[1].get_port_profile()).name]
     res={'name': con.name, 'ports': ports, 'id': con.connector_id }
@@ -541,52 +571,56 @@ class Rtc_Sh:
   ##############################################
   #
   def createInPort(self, name, type=RTC.TimedString, listener=True):
-        self._datatype[name]=type
-        self._data[name] = instantiateDataType(type)
-        self._port[name] = OpenRTM_aist.InPort(name, self._data[name])
+    print("== Create Inport")
+    self._datatype[name]=type
+    self._data[name] = instantiateDataType(type)
+    self._port[name] = OpenRTM_aist.InPort(name, self._data[name])
 
-        if listener:
-          self._port[name].addConnectorDataListener(
+    if listener:
+      self._port[name].addConnectorDataListener(
                             OpenRTM_aist.ConnectorDataListenerType.ON_BUFFER_WRITE,
                             RtcDataListener(name, type, self))
 
-        self._port[name].initConsumers()
-        self._port[name].initProviders()
-        self._port[name].setConnectionLimit(10)
-        #self.registerInPort(name, self._port[name])
+    self._port[name].initConsumers()
+    self._port[name].initProviders()
+    self._port[name].setConnectionLimit(10)
+    #self.registerInPort(name, self._port[name])
 
   #
   # Create the OutPort of RTC
   #
   def createOutPort(self, name, type=RTC.TimedString):
-        self._datatype[name]=type
-        self._data[name] = instantiateDataType(type)
-        self._port[name] = OpenRTM_aist.OutPort(name, self._data[name],
+    print("== Create Outport")
+    self._datatype[name]=type
+    self._data[name] = instantiateDataType(type)
+    self._port[name] = OpenRTM_aist.OutPort(name, self._data[name],
                                    OpenRTM_aist.RingBuffer(8))
 
-        self._port[name].configure()
-        self._port[name].initConsumers()
-        self._port[name].initProviders()
-        self._port[name].setConnectionLimit(10)
-        #self.registerOutPort(name, self._port[name])
+    self._port[name].configure()
+    self._port[name].initConsumers()
+    self._port[name].initProviders()
+    self._port[name].setConnectionLimit(10)
+    #self.registerOutPort(name, self._port[name])
 
   #
   # Create and Register DataPort of RTC
   #
   def createDataPort(self, name, dtype, inout, listener=False):
-        if inout == 'rtcout':
-            self.adaptortype[name] = self.getDataType(dtype)
-            self.createOutPort(name, self.adaptortype[name][0])
-            self.adaptors[name] = self
+      if name in self._port: return self._port[name]
 
-        elif inout == 'rtcin':
-            self.adaptortype[name] = self.getDataType(dtype)
-            self.createInPort(name, self.adaptortype[name][0], listener=listener)
-            self.adaptors[name] = self
-        else:
-            return False
+      if inout == 'rtcout':
+        self.adaptortype[name] = self.getDataType(dtype)
+        self.createOutPort(name, self.adaptortype[name][0])
+        self.adaptors[name] = self
 
-        return True
+      elif inout == 'rtcin':
+        self.adaptortype[name] = self.getDataType(dtype)
+        self.createInPort(name, self.adaptortype[name][0], listener=listener)
+        self.adaptors[name] = self
+      else:
+        return None
+
+      return self._port[name]
   #
   #
   def onData(self, name, data):
@@ -699,7 +733,7 @@ class Rtc_Sh:
   #
   #
   def writeData(self, name, no_thread=True):
-    print("====>",self._data[name])
+    #print("====>",self._data[name])
     try:
       if no_thread:
         return self._port[name].write(self._data[name])
@@ -1317,8 +1351,9 @@ class RtCmd(cmd.Cmd):
   #
   def close(self):
     self.loop=False
-    if self.print_conection:
-      self.rtsh._port["print"].disconnect(self.print_conection)
+    self.rtsh.disconnectAllPorts()
+    #if self.print_conection:
+    #  self.print_conection[0].disconnect(self.print_conection[1])
 
     if self.file:
       self.file.close()
@@ -1412,8 +1447,12 @@ class RtCmd(cmd.Cmd):
         self.rtsh.initRtmManager()
         self.rtsh.refreshObjectList()
 
-      self.rtsh.createDataPort("inject", dtype2, "rtcout")
-      cprof=self.rtsh.connect2("inject_"+cname+"_"+pname, self.rtsh._port["inject"]._objref, pref)
+      portname = "inject_"+dtype2
+      port=self.rtsh.createDataPort(portname, dtype2, "rtcout")
+      if port is None:
+        self._error = 1
+        return self.onecycle
+      cprof=self.rtsh.connect2(portname+"_"+cname+"_"+pname, port._objref, pref)
       print("=== inject ====")
 
       #
@@ -1427,26 +1466,26 @@ class RtCmd(cmd.Cmd):
           print("inject ==> ", end="")
           try:
             data=input()
-            self.sendData(data,raw)
+            self.sendData(portname, data, raw)
             count += 1
           except EOFError:
             self.loop = False
       else:
         if timeout > 0:
           while True:
-            self.sendData(data, raw)
+            self.sendData(portname, data, raw)
             time.sleep(intval)
             if time.time() > ctm+timeout: break
         else:
           if nloop <= 0: nloop=1
           for i in range(nloop):
-            self.sendData(data, raw)
+            self.sendData(portname, data, raw)
             if i < nloop-1:
               time.sleep(intval)
       
       #
       # disconnect
-      self.rtsh._port["inject"].disconnect(cprof.connector_id)
+      port.disconnect(cprof.connector_id)
       #print("-- disconnect inject",self.onecycle)
     #if self.onecycle: self.close()
 
@@ -1464,8 +1503,8 @@ class RtCmd(cmd.Cmd):
     else:
       return self.compl_object_name(text, line, begind, endidx, ":")
 
-  def sendData(self, data, raw=False):
-    self.rtsh.send("inject", data, raw=raw)
+  def sendData(self, portname, data, raw=False):
+    self.rtsh.send(portname, data, raw=raw)
 
   #
   #
@@ -1537,8 +1576,8 @@ class RtCmd(cmd.Cmd):
 
     if dtype :
       #dtype2 = dtype.split(":")[1].replace("RTC/", "")
-      dtype2 = dtype.split(":")[1]
-      dtype2 = dtype2.replace("/", ".")
+      dtype2 = dtype.split(":")[1].replace("/", ".")
+      #dtype2 = dtype2.replace("/", ".")
       pref = self.rtsh.getPortRef(cname, pname)
       #
       # Create inport and connect
@@ -1546,8 +1585,12 @@ class RtCmd(cmd.Cmd):
         self.rtsh.initRtmManager()
         self.rtsh.refreshObjectList()
 
-      self.rtsh.createDataPort("print", dtype2, "rtcin", listener)
-      cprof=self.rtsh.connect2("print_"+cname+"_"+pname, self.rtsh._port["print"]._objref, pref)
+      portname = "print_" + dtype2
+      port = self.rtsh.createDataPort(portname, dtype2, "rtcin", listener)
+      if port is None:
+        self._error = 1
+        return self.onecycle
+      cprof=self.rtsh.connect2(portname+"_"+cname+"_"+pname, port._objref, pref)
       print("=======print:", formatter)
       self.print_formatter=formatter
       try:
@@ -1558,14 +1601,14 @@ class RtCmd(cmd.Cmd):
       #
       if listener:
         print("Connector_id:", cprof.connector_id)
-        self.print_conection=cprof.connector_id
+        self.print_conection=[port, cprof.connector_id]
         pass
       else:
         ctm=time.time()
         if timeout > 0:
           while True:
-            if self.rtsh.isNew("print"):
-              data = self.rtsh.readData("print")
+            if self.rtsh.isNew(portname):
+              data = self.rtsh.readData(portname)
             else:
               data=None
             if time.time() > ctm+timeout: break
@@ -1589,10 +1632,10 @@ class RtCmd(cmd.Cmd):
             # recieve data
             self.loop = True
             while self.loop:
-              if self.rtsh.isNew("print"):
+              if self.rtsh.isNew(portname):
                 self.loop = False
               time.sleep(0.3)
-            data = self.rtsh.readData("print")
+            data = self.rtsh.readData(portname)
 
             # output with formatter
             if formatter :
@@ -1606,7 +1649,7 @@ class RtCmd(cmd.Cmd):
         ###########################
         #
         # disconnect
-        self.rtsh._port["print"].disconnect(cprof.connector_id)
+        port.disconnect(cprof.connector_id)
         #print("-- disconnect print",self.onecycle)
       
     #if self.onecycle: self.close()
@@ -1623,14 +1666,29 @@ class RtCmd(cmd.Cmd):
     else:
       return self.compl_object_name(text, line, begind, endidx, ":")
 
+  #
+  #
+  def do_disconnect_all(self, arg):
+    argv = arg.split(" ")
+    for name in argv:
+      self.rtsh.disconnectAll(name)
+    
+    return self.onecycle
 
+  def complete_disconnect_all(self, text, line, begind, endidx):
+    return self.compl_object_name(text, line, begind, endidx, " ")
+
+  #
+  #
   def do_print_exit(self, arg):
     if self.no_rtsh() : return self.onecycle
     if self.print_conection:
-      self.rtsh._port["print"].disconnect(self.print_conection)
+      self.print_conection[0].disconnect(self.print_conection[1])
       self.print_conection=None
     return self.onecycle
 
+  #
+  #
   def onData(self, data):
     if self.print_callback:
       self.print_callback(data)
