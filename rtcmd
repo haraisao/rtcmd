@@ -644,7 +644,6 @@ class Rtc_Sh:
 
       module=dtype.split('.')
       if len(module) > 1 and not module[0] in globals():
-        #print("--- load module", module[0])
         exec("import "+module[0], globals())
             
       if inout == 'rtcout':
@@ -1649,6 +1648,11 @@ class RtCmd(cmd.Cmd):
       cprof=self.rtsh.connect2(portname+"_"+cname+"_"+pname, port._objref, pref)
       print("=======print:", formatter)
       self.print_formatter=formatter
+      if formatter :
+        module=formatter.split('.')
+        if len(module) > 1 and not module[0] in globals():
+          exec("import "+module[0], globals())
+      
       try:
         if callback: self.print_callback = eval(callback)
       except:
