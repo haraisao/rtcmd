@@ -45,6 +45,9 @@ import string
 import OpenRTM_aist.CORBA_RTCUtil
 import RTC, RTC__POA
 
+sys.path.append(".")
+sys.path.append("rtm")
+
 #####################################################
 #
 def encodeStr(data):
@@ -636,8 +639,14 @@ class Rtc_Sh:
   # Create and Register DataPort of RTC
   #
   def createDataPort(self, name, dtype, inout, listener=False):
+    try:
       if name in self._port: return self._port[name]
 
+      module=dtype.split('.')
+      if len(module) > 1 and not module[0] in globals():
+        #print("--- load module", module[0])
+        exec("import "+module[0], globals())
+            
       if inout == 'rtcout':
         self.adaptortype[name] = self.getDataType(dtype)
         self.createOutPort(name, self.adaptortype[name][0])
@@ -651,6 +660,8 @@ class Rtc_Sh:
         return None
 
       return self._port[name]
+    except:
+      return None
   #
   #
   def onData(self, name, data):
@@ -670,16 +681,16 @@ class Rtc_Sh:
     if s[-3:] == "Seq"     : seq = True
 
     dtype = str
-    if sys.version_info.major == 2 and s.count("WString")  : dtype = unicode
-    elif s.count("WString"): dtype = str          
-    elif s.count("String") : dtype = str
-    elif s.count("Float")  : dtype = float
-    elif s.count("Double") : dtype = float
-    elif s.count("Short")  : dtype = int
-    elif s.count("Long")   : dtype = int
-    elif s.count("Octet")  : dtype = int
-    elif s.count("Char")   : dtype = str
-    elif s.count("Boolean"): dtype = int
+    if sys.version_info.major == 2 and s.count("TimedWString")  : dtype = unicode
+    elif s.count("TimedWString"): dtype = str          
+    elif s.count("TimedString") : dtype = str
+    elif s.count("TimedFloat")  : dtype = float
+    elif s.count("TimedDouble") : dtype = float
+    elif s.count("TimedShort")  : dtype = int
+    elif s.count("TimedLong")   : dtype = int
+    elif s.count("TimedOctet")  : dtype = int
+    elif s.count("TimedChar")   : dtype = str
+    elif s.count("TimedBoolean"): dtype = int
     else                   : dtype = eval("%s" % s)
 
     return (eval("%s" % s), dtype, seq)
@@ -1420,7 +1431,7 @@ class RtCmd(cmd.Cmd):
     data=""
     intval = 1
     timeout=0
-    raw=False
+    raw=True
 
     for i in range(len(argv)):
       if argv[i] == "-m":
@@ -1453,8 +1464,16 @@ class RtCmd(cmd.Cmd):
         except:
           print("Invalid options")
           pass
-      elif argv[i] == "--raw":
-        raw=True
+      elif argv[i] == "--seat":
+        raw=False
+      elif argv[i] == "-p":
+        i += 1
+        try:
+          if not (argv[i] in sys.path):
+            sys.path.append(argv[i])
+        except:
+          print("Invalid options")
+          pass
       elif argv[i] == "-c":
         i += 1
         data = ' '.join(argv[i:])
@@ -1469,9 +1488,7 @@ class RtCmd(cmd.Cmd):
 
     dtype = self.rtsh.getPortDataType(cname, pname)
     if dtype :
-      #dtype2 = dtype.split(":")[1].replace("RTC/", "")
       dtype2 = dtype.split(":")[1].replace("/", ".")
-      #dtype2 = dtype2.replace("/", ".")
       pref = self.rtsh.getPortRef(cname, pname)
       #
       # Create inport and connect
@@ -1482,6 +1499,7 @@ class RtCmd(cmd.Cmd):
       portname = "inject_"+dtype2
       port=self.rtsh.createDataPort(portname, dtype2, "rtcout")
       if port is None:
+        print("Fail to create DataPort")
         self._error = 1
         return self.onecycle
       cprof=self.rtsh.connect2(portname+"_"+cname+"_"+pname, port._objref, pref)
@@ -1502,6 +1520,7 @@ class RtCmd(cmd.Cmd):
             count += 1
           except EOFError:
             self.loop = False
+            print("")
       else:
         if timeout > 0:
           while True:
@@ -1519,7 +1538,6 @@ class RtCmd(cmd.Cmd):
       # disconnect
       port.disconnect(cprof.connector_id)
       #print("-- disconnect inject",self.onecycle)
-    #if self.onecycle: self.close()
 
     return self.onecycle
 
@@ -1531,11 +1549,10 @@ class RtCmd(cmd.Cmd):
     if line[endidx-1] != ' ' and args[-1].find(':') > 0 :
       text=args[-1]
       return self.compl_inport_name(text, line, begind, endidx)
-      #return self.compl_outport_name(text, line, begind, endidx)
     else:
       return self.compl_object_name(text, line, begind, endidx, ":")
 
-  def sendData(self, portname, data, raw=False):
+  def sendData(self, portname, data, raw=False, tm=True):
     self.rtsh.send(portname, data, raw=raw)
 
   #
@@ -1583,6 +1600,14 @@ class RtCmd(cmd.Cmd):
         except:
           print("Invalid options")
           pass
+      elif argv[i] == "-p":
+        i += 1
+        try:
+          if not (argv[i] in sys.path):
+            sys.path.append(argv[i])
+        except:
+          print("Invalid options")
+          pass
       elif argv[i] == "-l":
         listener=True
 
@@ -1607,9 +1632,7 @@ class RtCmd(cmd.Cmd):
     dtype = self.rtsh.getPortDataType(cname, pname)
 
     if dtype :
-      #dtype2 = dtype.split(":")[1].replace("RTC/", "")
       dtype2 = dtype.split(":")[1].replace("/", ".")
-      #dtype2 = dtype2.replace("/", ".")
       pref = self.rtsh.getPortRef(cname, pname)
       #
       # Create inport and connect
@@ -1620,6 +1643,7 @@ class RtCmd(cmd.Cmd):
       portname = "print_" + dtype2
       port = self.rtsh.createDataPort(portname, dtype2, "rtcin", listener)
       if port is None:
+        print("Fail to create DataPort")
         self._error = 1
         return self.onecycle
       cprof=self.rtsh.connect2(portname+"_"+cname+"_"+pname, port._objref, pref)
