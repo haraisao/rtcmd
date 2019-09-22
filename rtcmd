@@ -1419,10 +1419,10 @@ class RtCmd(cmd.Cmd):
   # ---------- inject -------
   #
   #  COMMAND: inject
-  def do_inject(self, arg):
+  def do_inject(self, args):
     if self.no_rtsh() : return self.onecycle
   
-    argv=arg.split(" ")
+    argv=args.split(" ")
     cname=None
     pname=None
     formatter=None
@@ -1432,54 +1432,51 @@ class RtCmd(cmd.Cmd):
     timeout=0
     raw=True
 
-    for i in range(len(argv)):
-      if argv[i] == "-m":
-        i += 1
+    while argv:
+      arg = argv.pop(0)
+      if arg == "-m":
         try:
-          module="import "+ argv[i]
+          module="import "+ argv.pop(0)
           exec(module, globals())
         except:
           print("Error in import module")
           pass
 
-      elif argv[i] == "-n":
-        i += 1
+      elif arg == "-n":
         try:
-          nloop=int(argv[i])
+          nloop=int(argv.pop(0))
         except:
           print("Invalid options")
           pass
-      elif argv[i] == "-r":
-        i += 1
+      elif arg == "-r":
         try:
-          intval=1.0/float(argv[i])
+          intval=1.0/float(argv.pop(0))
         except:
           print("Invalid options")
           pass
-      elif argv[i] == "-t":
-        i += 1
+      elif arg == "-t":
         try:
-          timeout=float(argv[i])
+          timeout=float(argv.pop(0))
         except:
           print("Invalid options")
           pass
-      elif argv[i] == "--seat":
+      elif arg == "--seat":
         raw=False
-      elif argv[i] == "-p":
-        i += 1
+      elif arg == "-p":
         try:
-          if not (argv[i] in sys.path):
-            sys.path.append(argv[i])
+          arg = argv.pop(0)
+          if not (arg in sys.path):
+            sys.path.append(arg)
         except:
           print("Invalid options")
           pass
-      elif argv[i] == "-c":
-        i += 1
-        data = ' '.join(argv[i:])
+      elif arg == "-c":
+        data = ' '.join(argv)
         break
+
       else:
-        if argv[i].find(":") > 0 and cname is None:
-          cname, pname = argv[i].split(":")
+        if arg.find(":") > 0 and cname is None:
+          cname, pname = arg.split(":")
           try:
             pname, formatter = pname.split("#")
           except:
@@ -1556,9 +1553,9 @@ class RtCmd(cmd.Cmd):
 
   #
   #
-  def do_print(self, arg):
+  def do_print(self, args):
     if self.no_rtsh() : return self.onecycle
-    argv=arg.split(" ")
+    argv=args.split(" ")
     cname=None
     pname=None
     formatter=None
@@ -1568,61 +1565,57 @@ class RtCmd(cmd.Cmd):
     listener=False
     callback=None
 
-    for i in range(len(argv)):
-      if argv[i].startswith("#") : break
-      if argv[i] == "-m":
-        i += 1
+    while argv:
+      arg = argv.pop(0)
+      if arg.startswith("#") : break
+      if arg == "-m":
         try:
-          module="import "+ argv[i]
+          module="import "+ argv.pop(0)
           exec(module, globals())
         except:
           print("Error in import module")
           pass
-      elif argv[i] == "-n":
-        i += 1
+      elif arg == "-n":
         try:
-          nloop=int(argv[i])
+          nloop=int(argv.pop(0))
         except:
           print("Invalid options")
           pass
-      elif argv[i] == "-r":
-        i += 1
+      elif arg == "-r":
         try:
-          intval=1.0/float(argv[i])
+          intval=1.0/float(argv.pop(0))
         except:
           print("Invalid options")
           pass
-      elif argv[i] == "-t":
-        i += 1
+      elif arg == "-t":
         try:
-          timeout=float(argv[i])
+          timeout=float(argv.pop(0))
         except:
           print("Invalid options")
           pass
-      elif argv[i] == "-p":
-        i += 1
+      elif arg == "-p":
         try:
-          if not (argv[i] in sys.path):
-            sys.path.append(argv[i])
+          arg = argv.pop(0)
+          if not (arg in sys.path):
+            sys.path.append(arg)
         except:
           print("Invalid options")
           pass
-      elif argv[i] == "-l":
+      elif arg == "-l":
         if self.print_conection:
           return self.onecycle
         else:
           listener=True
 
-      elif argv[i] == "-c":
-        i += 1
+      elif arg == "-c":
         try:
-          callback=argv[i]
+          callback=argv.pop(0)
         except:
           print("Invalid options")
           pass
       else:
-        if argv[i].find(":") > 0 and cname is None:
-          cname, pname = argv[i].split(":")
+        if arg.find(":") > 0 and cname is None:
+          cname, pname = arg.split(":")
           try:
             pname, formatter = pname.split("#")
           except:
@@ -1768,19 +1761,55 @@ class RtCmd(cmd.Cmd):
 
   #
   # COMMAD waite_for
-  def do_wait_for(self, arg):
+  def do_wait_for(self, args):
     try:
       if self.no_rtsh() : return self.onecycle
       func=self.find_rtc
       flag=True
-      argv=arg.split(" ")
-      if len(argv) > 1: timeout=int(argv[1])
-      else: timeout=30
+      cname=None
 
-      if len(argv) > 2: func=eval(argv[2])
-      if len(argv) > 3: flag=eval(argv[3])
+      argv=args.split(" ")
+      timeout = float(argv.pop(0))
 
-      res=self.rtsh.wait_for(argv[0], timeout, func=func, flag=flag)
+      while argv:
+        arg = argv.pop(0)
+        if arg == "-m":
+          try:
+            module="import "+ argv.pop(0)
+            exec(module, globals())
+          except:
+            print("Error in import module")
+            pass
+        elif arg == "-r":
+          flag=False
+        elif arg == "-p":
+          try:
+            arg = argv.pop(0)
+            if not (arg in sys.path):
+              sys.path.append(arg)
+          except:
+            print("Invalid options")
+            pass
+        elif arg == "-f":
+          try:
+            func=eval(argv.pop(0))
+          except:
+            print("Invalid options")
+            pass
+        elif arg == "-c":
+          try:
+            cmake = arg
+          except:
+            print("Invalid options")
+            pass
+        else:
+          pass
+
+      if cname is None:
+        sleep(timeout)
+        return self.onecycle
+    
+      res=self.rtsh.wait_for(cname, timeout, func=func, flag=flag)
       if not res:
         print("==== time out =====")
       else:
