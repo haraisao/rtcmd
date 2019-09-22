@@ -1608,7 +1608,10 @@ class RtCmd(cmd.Cmd):
           print("Invalid options")
           pass
       elif argv[i] == "-l":
-        listener=True
+        if self.print_conection:
+          return self.onecycle
+        else:
+          listener=True
 
       elif argv[i] == "-c":
         i += 1
