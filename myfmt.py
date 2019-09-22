@@ -6,6 +6,7 @@ def timed_str(data):
     return res
 
 def julius_result(data):
+    print("---------")
     res=""
     doc = bs4.BeautifulSoup( data.data.encode('raw-unicode-escape').decode(), 'lxml')
     for s in doc.findAll('data'):

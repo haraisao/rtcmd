@@ -6,8 +6,8 @@ start JuliusRTC dictation
 
 #
 #  Wait for booting up the components
-wait_for JuliusRTC0 30
-wait_for OpenJTalkRTC0 30
+wait_for 30 -c JuliusRTC0
+wait_for 30 -c OpenJTalkRTC0
 # wait_for SimpleIO 30
 
 #
@@ -19,15 +19,15 @@ connect OpenJTalkRTC0:result JuliusRTC0:data
 # Activat all components
 activate all
 
-wait_for JuliusRTC0 30 self.check_active
-wait_for OpenJTalkRTC0 30 self.check_active
-# wait_for SimpleIO 30 self.check_active
+wait_for 30 -c JuliusRTC0 -f self.check_active
+wait_for 30 -c OpenJTalkRTC0 -f self.check_active
+# wait_for 30 -c SimpleIO -f self.check_active
 
 print -m myfmt -l JuliusRTC0:result#myfmt.julius_result   # background printer
-inject OpenJTalkRTC0:text -c こんにちは、今日はいい天気ですね。
+inject --seat OpenJTalkRTC0:text -c こんにちは、今日はいい天気ですね。
 
-sleep 4
+wait_for 4
 
-#print_exit
+print_exit
 deactivate all
 terminate all

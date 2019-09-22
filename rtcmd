@@ -1434,6 +1434,7 @@ class RtCmd(cmd.Cmd):
 
     while argv:
       arg = argv.pop(0)
+      if arg.startswith("#") : break
       if arg == "-m":
         try:
           module="import "+ argv.pop(0)
@@ -1549,7 +1550,7 @@ class RtCmd(cmd.Cmd):
       return self.compl_object_name(text, line, begind, endidx, ":")
 
   def sendData(self, portname, data, raw=False, tm=True):
-    self.rtsh.send(portname, data, raw=raw)
+    self.rtsh.send(portname, data, raw=raw, tm=tm)
 
   #
   #
@@ -1773,6 +1774,7 @@ class RtCmd(cmd.Cmd):
 
       while argv:
         arg = argv.pop(0)
+        if arg.startswith("#") : break
         if arg == "-m":
           try:
             module="import "+ argv.pop(0)
@@ -1798,7 +1800,7 @@ class RtCmd(cmd.Cmd):
             pass
         elif arg == "-c":
           try:
-            cmake = arg
+            cname = argv.pop(0)
           except:
             print("Invalid options")
             pass
@@ -1806,15 +1808,16 @@ class RtCmd(cmd.Cmd):
           pass
 
       if cname is None:
-        sleep(timeout)
+        time.sleep(timeout)
         return self.onecycle
-    
+
       res=self.rtsh.wait_for(cname, timeout, func=func, flag=flag)
       if not res:
         print("==== time out =====")
       else:
         print("OK")
     except:
+      traceback.print_exc()
       print("===ERROR===")
     return self.onecycle
 
