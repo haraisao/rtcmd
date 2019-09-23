@@ -16,7 +16,7 @@ connect OpenJTalkRTC0:result JuliusRTC0:data
 # connect JuliusRTC0:result SimpleIO:str_in
 
 #
-# Activat all components
+# Activate all components
 activate all
 
 wait_for 30 -c JuliusRTC0 -f self.check_active
@@ -24,7 +24,8 @@ wait_for 30 -c OpenJTalkRTC0 -f self.check_active
 # wait_for 30 -c SimpleIO -f self.check_active
 
 print -m myfmt -l JuliusRTC0:result#myfmt.julius_result   # background printer
-inject --seat OpenJTalkRTC0:text -c こんにちは、今日はいい天気ですね。
+#inject --seat OpenJTalkRTC0:text -c こんにちは、今日はいい天気ですね。
+inject OpenJTalkRTC0:text -c TimedString({time}, encodeStr("こんにちは、今日はいい天気ですね。"))
 
 wait_for 4
 
