@@ -1904,7 +1904,7 @@ class RtCmd(cmd.Cmd):
       print("")
 
     elif cmd == "set":
-      if set_name is None: set_name=conf_set.id
+      if set_name is None: set_name=active_conf_set.id
       try:
         conf = config.get_configuration_set(set_name)
         for data  in conf.configuration_data:
@@ -1919,7 +1919,7 @@ class RtCmd(cmd.Cmd):
         traceback.print_exc()
 
     elif cmd == "get":
-      if set_name is None: set_name=conf_set.id
+      if set_name is None: set_name=active_conf_set.id
       try:
         for data  in config.get_configuration_set(set_name).configuration_data:
           if argv[0] == data.name: 
