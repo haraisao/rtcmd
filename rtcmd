@@ -1911,7 +1911,8 @@ class RtCmd(cmd.Cmd):
           if argv[0] == data.name:
             data.value._v = argv[1]
             config.set_configuration_set_values(conf)
-            config.activate_configuration_set(conf.id)
+            if conf.id == active_conf_set.id:
+              config.activate_configuration_set(conf.id)
             break
       except:
         print("==ERROR==", argv)
