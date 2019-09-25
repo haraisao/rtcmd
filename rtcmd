@@ -46,8 +46,11 @@ import OpenRTM_aist.CORBA_RTCUtil
 import RTC, RTC__POA
 
 import io
-from PIL import Image
-import pydot
+try:
+  from PIL import Image
+  import pydot
+except:
+  PIL = None
 
 sys.path.append(".")
 sys.path.append("rtm")
@@ -2131,8 +2134,12 @@ class RtCmd(cmd.Cmd):
 
   ###
   # COMMAND: graph
-  def do_doc(self, args):
+  def do_graph(self, args):
     if self.no_rtsh() : return self.onecycle
+    if PIL is None:
+      print("===No PIL found. please install PIL, and pydot")
+      return self.onecycle
+      
     self.rtsh.createGraph()
 
     return  self.onecycle
