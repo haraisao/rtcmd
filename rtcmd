@@ -1468,7 +1468,7 @@ class RtCmd(cmd.Cmd):
     arg = "cmd /c start "+arg
     cmdline = arg.split()
     try:
-      proc = subprocess.Popen(cmdline, shell=True)
+      proc = subprocess.Popen(cmdline)
       self.processes.append(proc)
     except:
       traceback.print_exc()
