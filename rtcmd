@@ -45,8 +45,17 @@ import string
 import OpenRTM_aist.CORBA_RTCUtil
 import RTC, RTC__POA
 
+import io
+from PIL import Image
+import pydot
+
 sys.path.append(".")
 sys.path.append("rtm")
+
+#######  T E S T ###############
+def showGraph(graph):
+    img = Image.open(io.BytesIO(graph.create_png()))
+    img.show()
 
 
 #####################################################
@@ -514,9 +523,10 @@ class Rtc_Sh:
   #
   def getAllConnectors(self, name):
     res=[]
+    if name.count(".rtc") == 0 : name = name+".rtc"
     port_ref = self.object_list[name].get_ports()
     for p in port_ref:
-      res.append( port_ref.get_connector_profiles() )
+      res.append( p.get_connector_profiles() )
     return res
 
   def disconnectAll(self, name):
@@ -924,6 +934,46 @@ class Rtc_Sh:
     except:
       return []
 
+  def get_connectors_of_rtc(self, name):
+    cons = self.getAllConnectors(name)
+    cons = sum(cons, [])
+    res = []
+    for con in cons:
+      #print("--", con.ports[0].get_port_profile().name, " <==> ", name)
+      if con.ports[0].get_port_profile().name.startswith(name.split('.')[0]):
+        res.append([x.get_port_profile().name for x in con.ports])
+    return res
+  #
+  # test
+  def createGraph(self):
+    graph = pydot.Dot(graph_type='graph')
+    rtc_names = self.getRTObjectNames()
+    links=[]
+    nodes={}
+    for name in rtc_names:
+      st=self.get_component_state(name)
+      color="blue"
+      fcolor='white'
+      if st == RTC.ACTIVE_STATE:
+        color="green"
+        fcolor='black'
+      elif st == RTC.ERROR_STATE:
+        color="red"
+      name = name.split('.')[0]
+      nodes[name] = pydot.Node(name, style="filled", fillcolor=color, shape="rect", fontcolor=fcolor)
+      graph.add_node(nodes[name])
+      cons=self.get_connectors_of_rtc(name)
+      if cons : links = links + cons
+
+    for lnk in links:
+      oobj, oport = lnk[0].split('.')
+      iobj, iport = lnk[1].split('.')
+      lbl="%s => %s" % (oport, iport)
+      edge = pydot.Edge(nodes[oobj], nodes[iobj], dir="forward", label=lbl)
+      graph.add_edge(edge)
+
+
+    showGraph(graph)
   #----- END OF Rtc_Sh
 
 ##################################################################
@@ -2062,7 +2112,7 @@ class RtCmd(cmd.Cmd):
     return self.compl_object_name(text, line, begind, endidx, " ")
 
   ###
-  # COMMAND: conf
+  # COMMAND: doc
   def do_doc(self, args):
     if self.no_rtsh() : return self.onecycle
     argv=args.split(" ")
@@ -2078,6 +2128,14 @@ class RtCmd(cmd.Cmd):
       pass
     
     return self.compl_object_name(text, line, begind, endidx, " ")
+
+  ###
+  # COMMAND: graph
+  def do_doc(self, args):
+    if self.no_rtsh() : return self.onecycle
+    self.rtsh.createGraph()
+
+    return  self.onecycle
 #------ END OF RtCom
 
 
