@@ -432,6 +432,7 @@ class Rtc_Sh:
           pinfo['flow']=pprof['port.port_type']
           pinfo['type']=pprof['dataport.data_type'].split(':')[1].replace("/", "::")
           dport.append( pinfo )
+
         if pprof['port.port_type'] == 'CorbaPort' :
           inp=pp.interfaces[0]
           pinfo['if_name']=inp.instance_name
@@ -944,17 +945,29 @@ class Rtc_Sh:
     for con in cons:
       #print("--", con.ports[0].get_port_profile().name, " <==> ", name)
       if con.ports[0].get_port_profile().name.startswith(name.split('.')[0]):
+        pp=con.ports[0].get_port_profile()
+        pprof =  nvlist2dict(pp.properties)
+        if pprof['port.port_type'] == 'DataInPort':
+          con.ports.reverse()
+        elif pprof['port.port_type'] == 'CorbaPort':
+          inp=pp.interfaces[0]
+          if inp.polarity == PROVIDED:
+            con.ports.reverse()
+
         res.append([x.get_port_profile().name for x in con.ports])
     return res
   #
   # test
-  def createGraph(self):
+  def createGraph(self, rtcs="all"):
+    if rtcs == "all" or rtcs == "":
+      rtc_names = self.getRTObjectNames()
+    else:
+      rtc_names=rtcs.split(" ")
     graph = pydot.Dot(graph_type='graph')
-    rtc_names = self.getRTObjectNames()
     links=[]
     nodes={}
     for name in rtc_names:
-      st=self.get_component_state(name)
+      st=self.get_component_state(name.strip())
       color="blue"
       fcolor='white'
       if st == RTC.ACTIVE_STATE:
@@ -2136,13 +2149,16 @@ class RtCmd(cmd.Cmd):
   # COMMAND: graph
   def do_graph(self, args):
     if self.no_rtsh() : return self.onecycle
-    if PIL is None:
+
+    try:
+      self.rtsh.createGraph(args)
+    except:
       print("===No PIL found. please install PIL, and pydot")
-      return self.onecycle
-      
-    self.rtsh.createGraph()
 
     return  self.onecycle
+
+  def complete_graph(self, text, line, begind, endidx):
+    return self.compl_object_name(text, line, begind, endidx, " ")
 #------ END OF RtCom
 
 
