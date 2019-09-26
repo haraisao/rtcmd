@@ -335,7 +335,7 @@ class Rtc_Sh:
   #
   #
   def refreshObjectList(self):
-    self.object_list = {}
+    self.object_list.clear()
     return self.getRTObjectList()
 
   #
@@ -1487,10 +1487,9 @@ class RtCmd(cmd.Cmd):
   ###
   #  COMMAND: refresh
   def do_refresh(self,arg):
-    if self.rtsh is None:
-      print("No NameService")
-      return self.onecycle
-    self.rtsh.getRTObjectList()
+    if self.no_rtsh() : return self.onecycle
+    
+    self.rtsh.refreshObjectList()
  
     return self.onecycle
   ###
