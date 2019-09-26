@@ -975,10 +975,12 @@ class Rtc_Sh:
         fcolor='black'
       elif st == RTC.ERROR_STATE:
         color="red"
-      name = name.split('.')[0]
-      nodes[name] = pydot.Node(name, style="filled", fillcolor=color, shape="rect", fontcolor=fcolor)
+      
+      disp_name = name.split('/')[-1].split(".")[0]
+      nodes[name] = pydot.Node(disp_name, style="filled", fillcolor=color, shape="rect", fontcolor=fcolor)
       graph.add_node(nodes[name])
       cons=self.get_connectors_of_rtc(name)
+
       if cons : links = links + cons
 
     for lnk in links:
@@ -2154,6 +2156,7 @@ class RtCmd(cmd.Cmd):
       self.rtsh.createGraph(args)
     except:
       print("===No PIL found. please install PIL, and pydot")
+      traceback.print_exc()
 
     return  self.onecycle
 
@@ -2431,12 +2434,15 @@ def rtc_profile(profile):
   res=""
 
   res += "<table>"
-  keys=['instance_name', 'description', 'version', 'vendor', 'category', 'activity_type', 'max_instance', 
+  keys=['instance_name', 'description', 'version', 'vendor', 'category', 'component_type', 'activity_type', 'kind', 'max_instance', 
     'language', 'lang_type', 'exec_cxt.periodic.type','exec_cxt.periodic.rate',
     'openrtm.name', 'openrtm.version', 'os.name', 'corba.id']
   for k in keys:
     if k in profile:
-      res += "<tr><th>%s</th><td>%s</td></tr>" % (k, profile[k].encode('raw-unicode-escape').decode('utf-8', 'ignore'))
+      if  type(profile[k]) == str: 
+        res += "<tr><th>%s</th><td>%s</td></tr>" % (k, profile[k].encode('raw-unicode-escape').decode('utf-8', 'ignore'))
+      else:
+         res += "<tr><th>%s</th><td>%s</td></tr>" % (k, profile[k])
 
   res += "</table>"
   return res
