@@ -1354,7 +1354,8 @@ class RtCmd(cmd.Cmd):
     if self.no_rtsh() : return self.onecycle
 
     argv=arg.split()
-    self.rtsh.getRTObjectList()
+    self.rtsh.refreshObjectList()
+
     for v in argv:
       objs = self.get_object_names(v)
       for obj in objs:
@@ -1372,7 +1373,8 @@ class RtCmd(cmd.Cmd):
   def do_deactivate(self, arg):
     if self.no_rtsh() : return self.onecycle
 
-    self.rtsh.getRTObjectList()
+    self.rtsh.refreshObjectList()
+
     argv=arg.split()
     for v in argv:
       objs = self.get_object_names(v)
@@ -1406,7 +1408,8 @@ class RtCmd(cmd.Cmd):
   def do_reset(self, arg):
     if self.no_rtsh() : return self.onecycle
 
-    self.rtsh.getRTObjectList()
+    self.rtsh.refreshObjectList()
+
     argv=arg.split()
     for v in argv:
       objs = self.get_object_names(v)
@@ -1424,7 +1427,7 @@ class RtCmd(cmd.Cmd):
   def do_terminate(self, arg):
     if self.no_rtsh() : return self.onecycle
 
-    self.rtsh.getRTObjectList()
+    self.rtsh.refreshObjectList()
     argv=arg.split()
     for v in argv:
       objs = self.get_object_names(v)
