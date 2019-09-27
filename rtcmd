@@ -278,7 +278,7 @@ class Rtc_Sh:
   #
   #
   def clearObjectList(self):
-    self.object_list={}
+    self.object_list.clear()
 
   #
   #
@@ -335,7 +335,7 @@ class Rtc_Sh:
   #
   #
   def refreshObjectList(self):
-    self.object_list = {}
+    self.object_list.clear()
     return self.getRTObjectList()
 
   #
@@ -2203,23 +2203,25 @@ def rtc_doc(fname, arg_type=None):
   <body>
   '''
 
-  res +="<h1>"+profile['name']+"</h1>"
-  res += rtc_image(profile)
-
-  res +="<h2>Profile</h2>"
+  res +="<h1>"+profile['name']+"</h1>\n"
+  res +="<h2>Profile</h2>\n"
+  res+="<table><tr><td>\n"
   res += rtc_profile(profile)
+  res+="</td><td>\n"
+  res += rtc_image(profile)
+  res+="</td></tr></table>\n"
   dp=rtc_dataport_table(profile)
   if dp:
-    res +="<h2>Data Ports</h2>"
+    res +="<h2>Data Ports</h2>\n"
     res += dp
 
   sp = rtc_serviceport_table(profile)
   if sp :
-    res +="<h2>Service Ports</h2>"
+    res +="<h2>Service Ports</h2>\n"
     res += sp
   cf=rtc_configuration_table(profile)
   if cf:
-    res +="<h2>Configurations</h2>"
+    res +="<h2>Configurations</h2>\n"
     res +=cf 
   res +="</body></html>"
 
@@ -2294,8 +2296,6 @@ def rtc_image(profile, view_w=600, pos0=260, align='center', style='', style2=''
     text_pos_y = height + 30
 
     res='''
-<p>
-<div style="text-align:$align; $style2">
 <svg width="$view_w" viewBox="0 0 $view_w $view_h" style="$style" >
      <defs>
         <path id="in_l" d="M0,0 h20 v20 h-20 L10,10Z" stroke="black" stroke-width="1" fill="green"/>
@@ -2425,7 +2425,7 @@ def rtc_image(profile, view_w=600, pos0=260, align='center', style='', style2=''
 
       i += 1
 
-    res += "</svg>\n</div>"
+    res += "</svg>\n"
 
   return res
 
@@ -2437,12 +2437,13 @@ def rtc_profile(profile):
   keys=['instance_name', 'description', 'version', 'vendor', 'category', 'component_type', 'activity_type', 'kind', 'max_instance', 
     'language', 'lang_type', 'exec_cxt.periodic.type','exec_cxt.periodic.rate',
     'openrtm.name', 'openrtm.version', 'os.name', 'corba.id']
+
   for k in keys:
     if k in profile:
       if  type(profile[k]) == str: 
-        res += "<tr><th>%s</th><td>%s</td></tr>" % (k, profile[k].encode('raw-unicode-escape').decode('utf-8', 'ignore'))
+        res += "<tr><th>%s</th><td>%s</td></tr>\n" % (k, profile[k].encode('raw-unicode-escape').decode('utf-8', 'ignore'))
       else:
-         res += "<tr><th>%s</th><td>%s</td></tr>" % (k, profile[k])
+         res += "<tr><th>%s</th><td>%s</td></tr>\n" % (k, profile[k])
 
   res += "</table>"
   return res
