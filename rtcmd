@@ -2247,44 +2247,48 @@ def rtc_image(profile, view_w=600, pos0=260, align='center', style='', style2=''
     #  count data_ports
     if 'dataport' in profile:
       dataport = profile['dataport']
-      for port in dataport:
-        if port['flow'] == 'in' or port['flow'] == 'DataInPort':
-
-          n_l += 1
-          port_l.append(port)
-          if n < n_l : n = n_l
-        elif port['flow'] == 'out' or port['flow'] == 'DataOutPort':
-          n_r += 1
-          port_r.append(port)
-          if n < n_r: n = n_r
+      if dataport:
+        for port in dataport:
+          if port['flow'] == 'in' or port['flow'] == 'DataInPort':
+            n_l += 1
+            port_l.append(port)
+            if n < n_l : n = n_l
+          elif port['flow'] == 'out' or port['flow'] == 'DataOutPort':
+            n_r += 1
+            port_r.append(port)
+            if n < n_r: n = n_r
 
     # count service_ports
     if 'serviceport' in profile and  profile['serviceport'] :
       serviceport = profile['serviceport']
-      for port in serviceport :
-        if port['flow'] == 'provider' :
-          if 'place' in port and port['place'] == 'left':
-            n_l += 1
-            port_l.append(port)
-            if n < n_l: n = n_l
-          else:
-            n_r += 1
-            port_r.append(port)
-            if n < n_r: n = n_r
+      if serviceport:
+        for port in serviceport :
+          if port['flow'] == 'provider' :
+            if 'place' in port and port['place'] == 'left':
+              n_l += 1
+              port_l.append(port)
+              if n < n_l: n = n_l
+            else:
+              n_r += 1
+              port_r.append(port)
+              if n < n_r: n = n_r
   
-        elif port['flow'] == 'consumer' :
-          if 'place' in port and port['place'] == 'left':
-            n_l += 1
-            port_l.append(port)
-            if n < n_l: n = n_l
-          else:
-            n_r += 1
-            port_r.append(port)
-            if n < n_r: n = n_r
+          elif port['flow'] == 'consumer' :
+            if 'place' in port and port['place'] == 'left':
+              n_l += 1
+              port_l.append(port)
+              if n < n_l: n = n_l
+            else:
+              n_r += 1
+              port_r.append(port)
+              if n < n_r: n = n_r
 
     # Draw image
     port_h = 50
-    height= 50 + port_h*(n -1)
+    if n == 0:
+      height=50
+    else:
+      height= 50 + port_h*(n -1)
     width=80
 
     view_h= height + 40
