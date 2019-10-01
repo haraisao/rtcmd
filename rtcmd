@@ -957,20 +957,23 @@ class Rtc_Sh:
     cons = self.getAllConnectors(name)
     cons = sum(cons, [])
     res = []
+
     for con in cons:
-      #print("--", con.ports[0].get_port_profile().name, " <==> ", name)
-      if con.ports[0].get_port_profile().name.startswith(name.split('.')[0]):
+      #print("--", con.ports[0].get_port_profile().name, " <==> ", name, name.split('/')[-1].split('.')[0])
+      if con.ports[0].get_port_profile().name.startswith(name.split('/')[-1].split('.')[0]):
         pp=con.ports[0].get_port_profile()
+        
         pprof =  nvlist2dict(pp.properties)
+        
         if pprof['port.port_type'] == 'DataInPort':
           con.ports.reverse()
         elif pprof['port.port_type'] == 'CorbaPort':
           inp=pp.interfaces[0]
           if inp.polarity == PROVIDED:
             con.ports.reverse()
-
-        res.append([x.get_port_profile().name for x in con.ports])
+        res.append([get_obj_port(x) for x in con.ports])
     return res
+
   #
   # test
   def createGraph(self, rtcs="all"):
@@ -994,20 +997,24 @@ class Rtc_Sh:
       disp_name = name.split('/')[-1].split(".")[0]
       nodes[name] = pydot.Node(disp_name, style="filled", fillcolor=color, shape="rect", fontcolor=fcolor)
       graph.add_node(nodes[name])
-      cons=self.get_connectors_of_rtc(name)
+      cons =self.get_connectors_of_rtc(name)
 
       if cons : links = links + cons
 
     for lnk in links:
-      oobj, oport = lnk[0].split('.')
-      iobj, iport = lnk[1].split('.')
+      oobj, oport = lnk[0]
+      iobj, iport = lnk[1]
       lbl="%s => %s" % (oport, iport)
       edge = pydot.Edge(nodes[oobj], nodes[iobj], dir="forward", label=lbl)
       graph.add_edge(edge)
 
-
     showGraph(graph)
   #----- END OF Rtc_Sh
+
+def get_obj_port(port):
+  pprof=port.get_port_profile()
+  comp=nvlist2dict(pprof.owner.get_component_profile().properties)['naming.names']
+  return [comp, pprof.name.split(".")[-1]]
 
 ##################################################################
 #   cass RtCmd
