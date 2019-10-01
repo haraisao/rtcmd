@@ -184,7 +184,9 @@ class RtcDataListener(OpenRTM_aist.ConnectorDataListenerT):
         self._obj.onData(self._name, data)
       else:
         self._obj.onData(self._name, cdrdata)
-
+        
+       return OpenRTM_aist.ConnectorListenerStatus.NO_CHANGE, data
+      
 ###########################################################################
 #
 #
