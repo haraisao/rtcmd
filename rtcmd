@@ -64,6 +64,7 @@ def rtm_version():
 
 #######  T E S T ###############
 def showGraph(graph):
+    #graph.write_png('rtcmd.png')
     img = Image.open(io.BytesIO(graph.create_png()))
     img.show()
 
@@ -984,7 +985,7 @@ class Rtc_Sh:
 
   #
   # test
-  def createGraph(self, rtcs="all"):
+  def createGraph(self, rtcs="all", view=True):
     if rtcs == "all" or rtcs == "":
       rtc_names = self.getRTObjectNames()
     else:
@@ -1016,7 +1017,15 @@ class Rtc_Sh:
       edge = pydot.Edge(nodes[oobj], nodes[iobj], dir="forward", label=lbl)
       graph.add_edge(edge)
 
-    showGraph(graph)
+    if view:
+      showGraph(graph)
+    
+    return graph
+
+  def updateGraphImage(self, fname, rtcs="all"):
+    graph = self.createGraph('all', False)
+    graph.write_png('rtcmd.png')
+
   #----- END OF Rtc_Sh
 
 def get_obj_port(port):
