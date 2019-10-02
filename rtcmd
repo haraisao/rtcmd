@@ -1012,7 +1012,7 @@ class Rtc_Sh:
     for lnk in links:
       oobj, oport = lnk[0]
       iobj, iport = lnk[1]
-      lbl="%s => %s" % (oport, iport)
+      lbl=" [%s => %s] " % (oport, iport)
       edge = pydot.Edge(nodes[oobj], nodes[iobj], dir="forward", label=lbl)
       graph.add_edge(edge)
 
@@ -1020,9 +1020,18 @@ class Rtc_Sh:
   #----- END OF Rtc_Sh
 
 def get_obj_port(port):
-  pprof=port.get_port_profile()
-  comp=nvlist2dict(pprof.owner.get_component_profile().properties)['naming.names']
-  return [comp, pprof.name.split(".")[-1]]
+  pp=port.get_port_profile()
+  pprof =  nvlist2dict(pp.properties)
+  if pprof['port.port_type'] == 'CorbaPort':
+    inp=pp.interfaces[0]
+    if inp.polarity == PROVIDED:
+      pname="P:"+pp.name.split(".")[-1]
+    else:
+      pname="C:"+pp.name.split(".")[-1]
+  else:
+    pname=pp.name.split(".")[-1]
+  comp=nvlist2dict(pp.owner.get_component_profile().properties)['naming.names']
+  return [comp, pname]
 
 ##################################################################
 #   cass RtCmd
@@ -1367,6 +1376,7 @@ class RtCmd(cmd.Cmd):
     if len(argv) > 1:
       res=self.rtsh.connect(argv[0], argv[1], True)
       if res is None: self._error = 1
+      else: print("OK")
     else:
       print("connect comp1:p comp2:p")
       self._error=1
@@ -1374,20 +1384,14 @@ class RtCmd(cmd.Cmd):
 
   #
   #
-  def compl_provider_name(self, text, line, begind, endidx, info=""):
+  def compl_provider_name(self, text, line, begind, endidx):
     try:
       objname, pname=text.split(':',1)
       if objname:
-        if info:
-          oname = info.split(":")
-          dtype = self.rtsh.getPortDataType(oname[0], oname[1])
-        else:
-          dtype = info
-
-        ports=self.rtsh.getPorts(objname, isServicePort, dtype)
+        ports=self.rtsh.getPorts(objname, isServicePort)
         pnames=[]
         for pp in ports:
-          if 'interface_polarity' in pp and pp['interface_polarity'] == PROVIDED:
+          if 'interface_polarity' in pp[1] and pp[1]['interface_polarity'] == PROVIDED:
             pnames.append(pp[0].split('.')[1])
         if not pname:
           completions=pnames[:]
@@ -1409,7 +1413,7 @@ class RtCmd(cmd.Cmd):
         ports=self.rtsh.getPorts(objname, isServicePort)
         pnames=[]
         for pp in ports:
-          if 'interface_polarity' in pp and pp['interface_polarity'] == REQUIRED:
+          if 'interface_polarity' in pp[1] and pp[1]['interface_polarity'] == REQUIRED:
             pnames.append(pp[0].split('.')[1])
         if not pname:
           completions=pnames[:]
@@ -1435,7 +1439,7 @@ class RtCmd(cmd.Cmd):
     if line[endidx-1] != ' ' and args[-1].find(':') > 0 :
       text=args[-1]
       if(len(args) > 2):
-        return self.compl_provider_name(text, line, begind, endidx, self._info)
+        return self.compl_provider_name(text, line, begind, endidx)
       else:
         return self.compl_consumer_name(text, line, begind, endidx)
     else:
