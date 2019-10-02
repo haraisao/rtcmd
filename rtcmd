@@ -219,6 +219,7 @@ class Rtc_Sh:
     self._send_thread = None
 
     self._rtcmd=None
+    self._update_thread = None
     ########################################
 
   #
@@ -424,7 +425,6 @@ class Rtc_Sh:
     else:
       print("No such RTC:", name)
     return None
-
 
   #
   #
@@ -1022,9 +1022,27 @@ class Rtc_Sh:
     
     return graph
 
-  def updateGraphImage(self, fname, rtcs="all"):
-    graph = self.createGraph('all', False)
-    graph.write_png('rtcmd.png')
+  def updateGraphImage(self, fname='rtcmd.png'):
+    self._loop = True
+    while self._loop:
+      try:
+        graph = self.createGraph('all', False)
+        graph.write_png(fname)
+      except:
+        print("==> Fail to update ", fname)
+        pass
+      time.sleep(1)
+
+  def startGraphUpdate(self):
+    if not self._update_thread :
+      self._update_thread=threading.Thread(target=self.updateGraphImage)
+      self._update_thread.start()
+  
+  def stopGraphUpdate(self):
+    if self._update_thread :
+      self._loop=False
+      self._update_thread.join(10)
+      self._update_thread=None
 
   #----- END OF Rtc_Sh
 
@@ -1095,6 +1113,20 @@ class RtCmd(cmd.Cmd):
       self._error = 1
       return True
     return False
+
+  ###
+  #  CPMMAND: 
+  def do_start_graph(self, arg):
+    if self.no_rtsh() : return self.onecycle
+    self.rtsh.startGraphUpdate()
+    return self.onecycle
+
+  ###
+  #  CPMMAND: 
+  def do_stop_graph(self, arg):
+    if self.no_rtsh() : return self.onecycle
+    self.rtsh.stopGraphUpdate()
+    return self.onecycle
 
   ###
   #  CPMMAND: list
@@ -1705,6 +1737,7 @@ class RtCmd(cmd.Cmd):
     self.rtsh.disconnectAllPorts()
     #if self.print_conection:
     #  self.print_conection[0].disconnect(self.print_conection[1])
+    self.rtsh.stopGraphUpdate()
 
     if self.file:
       self.file.close()
