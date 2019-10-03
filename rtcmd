@@ -32,6 +32,10 @@ except:
   
 import cmd
 
+import yaml
+import html
+import webbrowser
+
 #########################
 from RTC import *
 import CosNaming 
@@ -357,6 +361,35 @@ class Rtc_Sh:
   def refreshObjectList(self):
     self.object_list.clear()
     return self.getRTObjectList()
+
+  #
+  #
+  def getObjectList(self, ptype=''):
+    self.refreshObjectList()
+    if not ptype : return list(self.object_list.keys())
+    res=[]
+    if ptype == 'Consumer':
+      flow=REQUIRED
+      ptype='CorbaPort'
+    elif  ptype == 'Provider':
+      flow=PROVIDED
+      ptype='CorbaPort'
+
+    for x in self.object_list:
+      port_ref = self.object_list[x].get_ports()
+      for p in port_ref:
+        pp = p.get_port_profile()
+        pprof =  nvlist2dict(pp.properties)
+
+        if pprof['port.port_type'] == ptype :
+          if ptype == 'CorbaPort':
+            inp=pp.interfaces[0]
+            if inp.polarity == flow:  
+              res.append(x)
+          else:
+            res.append(x)
+          break
+    return res
 
   #
   #
@@ -1119,6 +1152,7 @@ class RtCmd(cmd.Cmd):
   def do_start_graph(self, arg):
     if self.no_rtsh() : return self.onecycle
     self.rtsh.startGraphUpdate()
+    webbrowser.open(os.path.join(os.path.dirname(__file__), 'rtcmd_view.html'))
     return self.onecycle
 
   ###
@@ -1215,8 +1249,10 @@ class RtCmd(cmd.Cmd):
 
   #
   #
-  def compl_object_name(self, text, line, begind, endidx, sp=""):
-    names=list(self.rtsh.object_list.keys())
+  def compl_object_name(self, text, line, begind, endidx, sp="", ptype=""):
+    #names=list(self.rtsh.object_list.keys())
+    names = self.rtsh.getObjectList(ptype)
+
     if not text:
       completions=names[:]
     else:
@@ -1355,7 +1391,10 @@ class RtCmd(cmd.Cmd):
       else:
         return self.compl_outport_name(text, line, begind, endidx)
     else:
-      return self.compl_object_name(text, line, begind, endidx, ":")
+      if(len(args) > 1):
+        return self.compl_object_name(text, line, begind, endidx, ":", 'DataInPort')
+      else:
+        return self.compl_object_name(text, line, begind, endidx, ":", 'DataOutPort')
 
   #
   #
@@ -1484,7 +1523,10 @@ class RtCmd(cmd.Cmd):
       else:
         return self.compl_consumer_name(text, line, begind, endidx)
     else:
-      return self.compl_object_name(text, line, begind, endidx, ":")
+      if(len(args) > 1):
+        return self.compl_object_name(text, line, begind, endidx, ":", 'Provider')
+      else:
+        return self.compl_object_name(text, line, begind, endidx, ":", 'Consumer')
   ###
   #  COMMAND: disconnect
   def do_disconnect(self, arg):
@@ -2325,9 +2367,6 @@ class RtCmd(cmd.Cmd):
 
 
 ############# for Documentation #####################
-import yaml
-import html
-import webbrowser
 
 
 def rtc_doc(fname, arg_type=None):
