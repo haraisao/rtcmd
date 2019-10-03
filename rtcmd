@@ -35,6 +35,7 @@ import cmd
 import yaml
 import html
 import webbrowser
+import shutil
 
 #########################
 from RTC import *
@@ -1152,7 +1153,9 @@ class RtCmd(cmd.Cmd):
   def do_start_graph(self, arg):
     if self.no_rtsh() : return self.onecycle
     self.rtsh.startGraphUpdate()
-    webbrowser.open(os.path.join(os.path.dirname(__file__), 'rtcmd_view.html'))
+    if not os.path.exists( 'rtcmd_view.html') :
+      shutil.copy(os.path.join(os.path.dirname(__file__), 'rtcmd_view.html'), 'rtcmd_view.html')
+    webbrowser.open('rtcmd_view.html')
     return self.onecycle
 
   ###
