@@ -2214,6 +2214,7 @@ class RtCmd(cmd.Cmd):
 
   def find_rtc(self, name):
     if name.count(".rtc") == 0 : name = name+".rtc"
+    name = name.replace("%h", socket.gethostname())
     stat=self.rtsh.refreshObjectList()
     names=list(self.rtsh.object_list.keys())
     for n in names:
