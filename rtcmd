@@ -589,8 +589,12 @@ class Rtc_Sh:
   def disconnectAll(self, name):
     try:
       connectors=self.getAllConnectors(name)
-      for con in connectors:
-        con.ports[0].disconnect(con.connector_id)
+      for cons in connectors:
+        try:
+          for con in cons:
+            con.ports[0].disconnect(con.connector_id)
+        except:
+          pass
     except:
       print("Error in disconnectAll")
       return False
