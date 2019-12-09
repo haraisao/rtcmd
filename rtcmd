@@ -2891,7 +2891,8 @@ def start_naming():
 ########################################################
 #   M A I N
 def main():
-  start_naming()
+  if os.name == 'nt':
+    start_naming()
 
   if len(sys.argv) > 1:
     rtcmd=RtCmd(once=True)
