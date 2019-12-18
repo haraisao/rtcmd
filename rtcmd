@@ -1108,11 +1108,11 @@ class RtCmd(cmd.Cmd):
 
   #
   #
-  def __init__(self, rtsh=None, once=False):
+  def __init__(self, rtsh=None, once=False,server_name=server_name):
     cmd.Cmd.__init__(self)
     if rtsh is None:
       try:
-        self.rtsh=Rtc_Sh()
+        self.rtsh=Rtc_Sh(server_name=server_name)
         self.rtsh.getRTObjectList()
 
       except:
@@ -2891,18 +2891,22 @@ def start_naming():
 ########################################################
 #   M A I N
 def main():
-  if os.name == 'nt':
-    start_naming()
+  server_name="localhost"
+  if 'NS_HOST' in os.environ:
+    server_name=os.environ['NS_HOST']
+  else: 
+    if os.name == 'nt':
+      start_naming()
 
   if len(sys.argv) > 1:
-    rtcmd=RtCmd(once=True)
+    rtcmd=RtCmd(once=True, server_name=server_name)
     signal.signal(signal.SIGINT, lambda: rtcmd.close())
     rtcmd.onecmd(" ".join(sys.argv[1:]))
     rtcmd.close()
     print(rtcmd._error)
     return 
   else:
-    RtCmd().cmdloop(intro="Welcome to RtCmd")
+    RtCmd(server_name=server_name).cmdloop(intro="Welcome to RtCmd")
   return 
 
 
