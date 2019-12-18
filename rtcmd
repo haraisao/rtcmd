@@ -1108,7 +1108,7 @@ class RtCmd(cmd.Cmd):
 
   #
   #
-  def __init__(self, rtsh=None, once=False,server_name=server_name):
+  def __init__(self, rtsh=None, once=False, server_name="localhost"):
     cmd.Cmd.__init__(self)
     if rtsh is None:
       try:
