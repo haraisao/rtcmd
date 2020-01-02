@@ -201,6 +201,8 @@ class Rtc_Sh:
   #
   def __init__(self, orb=None, server_name='localhost'):
     if orb is None:
+      #sys.argv.append("-ORBclientCallTimeOutPeriod")
+      #sys.argv.append("100000")
       self.orb = CORBA.ORB_init(sys.argv)
     else:
       self.orb=orb
@@ -749,7 +751,10 @@ class Rtc_Sh:
     obj=self.resolveRTObject(name)
     if obj :
       ec=obj.get_owned_contexts()[0]
-      res=ec.deactivate_component(obj)
+      try:
+        res=ec.deactivate_component(obj)
+      except:
+        pass
     return res
 
   #
@@ -769,7 +774,10 @@ class Rtc_Sh:
     obj=self.resolveRTObject(name)
     if obj:
       ec=obj.get_owned_contexts()[0]
-      stat=ec.get_component_state(obj)
+      try:
+        stat=ec.get_component_state(obj)
+      except:
+        pass
     return stat
 
   #
@@ -1049,10 +1057,15 @@ class Rtc_Sh:
       if cons : links = links + cons
 
     for lnk in links:
-      oobj, oport = lnk[0]
-      iobj, iport = lnk[1]
+      oobj, oport, otype = lnk[0]
+      iobj, iport, itype = lnk[1]
       lbl=" [%s => %s] " % (oport, iport)
-      edge = pydot.Edge(nodes[oobj], nodes[iobj], dir="forward", label=lbl)
+      if otype == "data":
+        edge = pydot.Edge(nodes[oobj], nodes[iobj], dir="forward", label=lbl)
+      elif otype == "service":
+        edge = pydot.Edge(nodes[oobj], nodes[iobj], dir="forward", arrowhead="dot", label=lbl)
+      else:
+        edge = pydot.Edge(nodes[oobj], nodes[iobj], dir="forward", arrowhead="none", label=lbl)
       graph.add_edge(edge)
 
     if view:
@@ -1069,7 +1082,7 @@ class Rtc_Sh:
       except:
         print("==> Fail to update ", fname)
         pass
-      time.sleep(1)
+      time.sleep(2)
 
   def startGraphUpdate(self):
     if not self._update_thread :
@@ -1087,7 +1100,9 @@ class Rtc_Sh:
 def get_obj_port(port):
   pp=port.get_port_profile()
   pprof =  nvlist2dict(pp.properties)
+  ptype="data"
   if pprof['port.port_type'] == 'CorbaPort':
+    ptype="service"
     inp=pp.interfaces[0]
     if inp.polarity == PROVIDED:
       pname="P:"+pp.name.split(".")[-1]
@@ -1096,7 +1111,7 @@ def get_obj_port(port):
   else:
     pname=pp.name.split(".")[-1]
   comp=nvlist2dict(pp.owner.get_component_profile().properties)['naming.names']
-  return [comp, pname]
+  return [comp, pname, ptype]
 
 ##################################################################
 #   cass RtCmd
@@ -1265,7 +1280,17 @@ class RtCmd(cmd.Cmd):
     else:
       completions= [ n+sp for n in names if n.startswith(text) ]
     return completions 
+  #
+  #
+  def compl_object_name_all(self, text, line, begind, endidx, sp="", ptype=""):
+    #names=list(self.rtsh.object_list.keys())
+    names = self.rtsh.getObjectList()
 
+    if not text:
+      completions=names[:]
+    else:
+      completions= [ n+sp for n in names if n.startswith(text) ]
+    return completions 
   #
   #
   def compl_port_name(self, text, line, begind, endidx):
@@ -1376,10 +1401,13 @@ class RtCmd(cmd.Cmd):
     argv=arg.split()
     if len(argv) > 1:
       res=self.rtsh.connect(argv[0], argv[1])
-      if res is None: self._error = 1
+      if res is None:
+        print("Fail to connect") 
+        self._error = 1
     else:
       print("connect comp1:p comp2:p")
       self._error=1
+    print("OK")
     return self.onecycle
 
   #
@@ -1659,7 +1687,7 @@ class RtCmd(cmd.Cmd):
     return self.onecycle
 
   def complete_unbind(self, text, line, begind, endidx):
-    return self.compl_object_name(text, line, begind, endidx, " ")
+    return self.compl_object_name_all(text, line, begind, endidx, " ")
 
   ###
   #  COMMAND: system
@@ -1783,10 +1811,14 @@ class RtCmd(cmd.Cmd):
   #
   def close(self):
     self.loop=False
-    self.rtsh.disconnectAllPorts()
-    #if self.print_conection:
-    #  self.print_conection[0].disconnect(self.print_conection[1])
-    self.rtsh.stopGraphUpdate()
+    try:
+      self.rtsh.disconnectAllPorts()
+      #if self.print_conection:
+      #  self.print_conection[0].disconnect(self.print_conection[1])
+      self.rtsh.stopGraphUpdate()
+    except:
+      pass
+    
 
     if self.file:
       self.file.close()
